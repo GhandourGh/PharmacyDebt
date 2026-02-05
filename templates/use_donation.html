@@ -52,8 +52,7 @@
                        id="customer_search_input" 
                        class="form-control" 
                        placeholder="Search customer by name or phone..."
-                       autocomplete="off"
-                       style="margin-bottom: 0.5rem;">
+                       autocomplete="off">
                 <select name="customer_id" 
                         id="customer_select" 
                         class="form-control" 
@@ -64,13 +63,14 @@
                     {% if customer.debt > 0 %}
                     <option value="{{ customer.id }}" 
                             data-name="{{ customer.name|lower }}" 
-                            data-phone="{{ customer.phone|lower if customer.phone else '' }}">
+                            data-phone="{{ customer.phone|lower if customer.phone else '' }}"
+                            data-debt="{{ "%.2f"|format(customer.debt) }}">
                         {{ customer.name }} - Owes ${{ "%.2f"|format(customer.debt) }}
                     </option>
                     {% endif %}
                     {% endfor %}
                 </select>
-                <div id="customer_results" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e2e8f0; border-radius: 4px; max-height: 200px; overflow-y: auto; z-index: 10000; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-top: 2px; pointer-events: auto;"></div>
+                <div id="customer_results" style="display: none; position: absolute; top: 100%; left: 0; right: 0; width: 100%; background: white; border: 1px solid #e2e8f0; border-radius: 4px; max-height: 200px; overflow-y: auto; z-index: 10000; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-top: 2px; pointer-events: auto;"></div>
             </div>
             <small style="color: #64748b; font-size: 0.875rem; margin-top: 0.25rem; display: block;">
                 Only customers with outstanding debt are shown
@@ -148,11 +148,14 @@
             customerResults.style.display = 'block';
         } else {
             customerResults.innerHTML = matches.map(option => {
+                const customerName = option.textContent.split(' - ')[0];
+                const debtAmount = option.dataset.debt || '0.00';
                 return `<div class="customer-option" 
                              data-id="${option.value}" 
                              data-text="${option.textContent}"
-                             style="padding: 0.75rem; cursor: pointer; border-bottom: 1px solid #f1f5f9; user-select: none;">
-                        ${option.textContent}
+                             style="padding: 0.75rem; cursor: pointer; border-bottom: 1px solid #f1f5f9; user-select: none; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: 500;">${customerName}</span>
+                        <span style="color: #dc2626; font-weight: 600;">Owes $${parseFloat(debtAmount).toFixed(2)}</span>
                         </div>`;
             }).join('');
             customerResults.style.display = 'block';
