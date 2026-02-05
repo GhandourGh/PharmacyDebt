@@ -21,8 +21,8 @@
     </span>
     <input type="text" id="searchInput" class="search-input" placeholder="Search customers by name...">
     <div id="searchResults" class="search-results"></div>
-    <label style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 4px; font-size: 0.75rem; color: #64748b; cursor: pointer; user-select: none; z-index: 10;">
-        <input type="checkbox" id="noteSearchToggle" style="width: 14px; height: 14px; cursor: pointer; margin: 0;">
+    <label style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 6px; font-size: 0.875rem; color: #64748b; cursor: pointer; user-select: none; z-index: 10;">
+        <input type="checkbox" id="noteSearchToggle" style="width: 16px; height: 16px; cursor: pointer; margin: 0;">
         <span>Note Search</span>
     </label>
 </div>
@@ -59,6 +59,7 @@
                             </span>
                         </span>
                     </th>
+                    <th><span class="th-content"><i data-lucide="file-text" style="width: 14px; height: 14px;"></i> Notes</span></th>
                     <th class="text-right"><span class="th-content"><i data-lucide="credit-card" style="width: 14px; height: 14px;"></i> Quick Actions</span></th>
                     <th style="text-align: center;">Actions</th>
                 </tr>
@@ -110,6 +111,16 @@
                             </span>
                             {% endif %}
                         </div>
+                    </td>
+                    <!-- Notes Column -->
+                    <td data-label="Notes">
+                        {% if customer.notes %}
+                        <span style="color: #475569; font-size: 0.875rem; display: block; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ customer.notes }}">
+                            {{ customer.notes }}
+                        </span>
+                        {% else %}
+                        <span style="color: #94a3b8; font-size: 0.875rem; font-style: italic;">—</span>
+                        {% endif %}
                     </td>
                     <!-- Quick Actions Column -->
                     <td class="text-right">
@@ -357,9 +368,16 @@
             
             searchInput.addEventListener('input', performSearch);
             
-            // Also search when note toggle changes
+            // Also search when note toggle changes and update placeholder
             if (noteSearchToggle) {
-                noteSearchToggle.addEventListener('change', performSearch);
+                noteSearchToggle.addEventListener('change', function() {
+                    if (this.checked) {
+                        searchInput.placeholder = 'Search customers by name or notes...';
+                    } else {
+                        searchInput.placeholder = 'Search customers by name...';
+                    }
+                    performSearch();
+                });
             }
         }
     });
