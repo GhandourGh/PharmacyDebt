@@ -74,6 +74,7 @@
                     <th class="text-right"><span class="th-content"><i data-lucide="dollar-sign" style="width: 14px; height: 14px;"></i> Amount</span></th>
                     <th class="text-right"><span class="th-content"><i data-lucide="trending-down" style="width: 14px; height: 14px;"></i> Used</span></th>
                     <th class="text-right"><span class="th-content"><i data-lucide="wallet" style="width: 14px; height: 14px;"></i> Remaining</span></th>
+                    <th><span class="th-content"><i data-lucide="file-text" style="width: 14px; height: 14px;"></i> Notes</span></th>
                     <th style="text-align: center;">Actions</th>
                 </tr>
             </thead>
@@ -114,6 +115,15 @@
                         {% endif %}
                     </td>
                     <td>
+                        {% if donation.notes %}
+                        <span style="color: #475569; font-size: 0.875rem; display: block; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ donation.notes }}">
+                            {{ donation.notes }}
+                        </span>
+                        {% else %}
+                        <span style="color: #94a3b8; font-size: 0.875rem; font-style: italic;">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
                         <div class="action-buttons">
                             {% if donation.amount_remaining > 0 %}
                             <a href="{{ url_for('use_donation', donation_id=donation.id) }}" class="btn btn-success btn-sm">
@@ -128,14 +138,6 @@
                         </div>
                     </td>
                 </tr>
-                {% if donation.notes %}
-                <tr style="background: #f8fafc;">
-                    <td colspan="6" style="padding: 0.5rem 1rem; font-size: 0.875rem; color: #64748b;">
-                        <i data-lucide="file-text" style="width: 14px; height: 14px; vertical-align: middle;"></i>
-                        {{ donation.notes }}
-                    </td>
-                </tr>
-                {% endif %}
                 {% endfor %}
             </tbody>
         </table>
