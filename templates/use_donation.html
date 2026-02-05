@@ -53,6 +53,17 @@
                        class="form-control" 
                        placeholder="Search customer by name or phone..."
                        autocomplete="off">
+                <div id="customer_selected_display" 
+                     style="display: none; padding: 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <span id="selected_customer_name" style="font-weight: 500;"></span>
+                    <span id="selected_customer_debt" style="color: #dc2626; font-weight: 600;"></span>
+                    <button type="button" 
+                            id="clear_customer_btn" 
+                            style="background: none; border: none; color: #64748b; cursor: pointer; padding: 0.25rem 0.5rem; margin-left: 0.5rem;"
+                            title="Clear selection">
+                        <i data-lucide="x" style="width: 16px; height: 16px;"></i>
+                    </button>
+                </div>
                 <select name="customer_id" 
                         id="customer_select" 
                         class="form-control" 
@@ -116,6 +127,10 @@
     const customerSearchInput = document.getElementById('customer_search_input');
     const customerSelect = document.getElementById('customer_select');
     const customerResults = document.getElementById('customer_results');
+    const customerSelectedDisplay = document.getElementById('customer_selected_display');
+    const selectedCustomerName = document.getElementById('selected_customer_name');
+    const selectedCustomerDebt = document.getElementById('selected_customer_debt');
+    const clearCustomerBtn = document.getElementById('clear_customer_btn');
     const allCustomers = Array.from(customerSelect.options).slice(1); // Skip first empty option
     
     let selectedCustomerId = null;
@@ -123,15 +138,22 @@
     // Show search input, hide select
     customerSelect.style.display = 'none';
     customerSearchInput.style.display = 'block';
+    customerSelectedDisplay.style.display = 'none';
     
     // Filter customers as user types
     customerSearchInput.addEventListener('input', function() {
         const query = this.value.trim().toLowerCase();
-        selectedCustomerId = null;
+        
+        // If user starts typing, clear previous selection
+        if (query.length > 0 && selectedCustomerId) {
+            selectedCustomerId = null;
+            customerSelect.value = '';
+            customerSelectedDisplay.style.display = 'none';
+            customerSearchInput.style.display = 'block';
+        }
         
         if (query.length === 0) {
             customerResults.style.display = 'none';
-            customerSelect.value = '';
             return;
         }
         
@@ -168,12 +190,40 @@
         if (option) {
             const customerId = option.dataset.id;
             const customerText = option.dataset.text;
+            const customerName = customerText.split(' - ')[0];
+            const debtInfo = customerText.split(' - ')[1] || '';
+            
+            // Find the option to get debt amount
+            const selectedOption = Array.from(customerSelect.options).find(opt => opt.value == customerId);
+            const debtAmount = selectedOption ? selectedOption.dataset.debt : '0.00';
             
             selectedCustomerId = customerId;
             customerSelect.value = customerId;
-            customerSearchInput.value = customerText.split(' - ')[0]; // Show just the name
+            
+            // Hide search input and show selected customer display
+            customerSearchInput.style.display = 'none';
+            customerSearchInput.value = '';
+            
+            // Show selected customer in styled display
+            selectedCustomerName.textContent = customerName;
+            selectedCustomerDebt.textContent = debtInfo || `Owes $${parseFloat(debtAmount).toFixed(2)}`;
+            customerSelectedDisplay.style.display = 'flex';
+            
             customerResults.style.display = 'none';
+            
+            // Refresh icons after DOM update
+            lucide.createIcons();
         }
+    });
+    
+    // Clear customer selection
+    clearCustomerBtn.addEventListener('click', function() {
+        selectedCustomerId = null;
+        customerSelect.value = '';
+        customerSearchInput.value = '';
+        customerSearchInput.style.display = 'block';
+        customerSelectedDisplay.style.display = 'none';
+        customerSearchInput.focus();
     });
     
     // Add hover effects using CSS
