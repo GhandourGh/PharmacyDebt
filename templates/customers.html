@@ -15,12 +15,16 @@
 </div>
 
 <!-- Search -->
-<div class="search-container">
+<div class="search-container" style="position: relative;">
     <span class="search-icon">
         <i data-lucide="search"></i>
     </span>
     <input type="text" id="searchInput" class="search-input" placeholder="Search customers by name...">
     <div id="searchResults" class="search-results"></div>
+    <label style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 4px; font-size: 0.75rem; color: #64748b; cursor: pointer; user-select: none; z-index: 10;">
+        <input type="checkbox" id="noteSearchToggle" style="width: 14px; height: 14px; cursor: pointer; margin: 0;">
+        <span>Note Search</span>
+    </label>
 </div>
 
 <div class="card card-info">
@@ -61,7 +65,7 @@
             </thead>
             <tbody id="customersTableBody">
                 {% for customer in customers %}
-                <tr data-name="{{ customer.name|lower }}" data-debt="{{ customer.debt }}">
+                <tr data-name="{{ customer.name|lower }}" data-debt="{{ customer.debt }}" data-notes="{{ (customer.notes or '')|lower }}">
                     <!-- Customer with Avatar -->
                     <td data-label="Customer">
                         <a href="{{ url_for('customer_detail', customer_id=customer.id) }}" style="text-decoration: none;">
@@ -306,13 +310,15 @@
     document.addEventListener('DOMContentLoaded', function() {
         const searchInput = document.getElementById('searchInput');
         const tableBody = document.getElementById('customersTableBody');
+        const noteSearchToggle = document.getElementById('noteSearchToggle');
         
         if (searchInput && tableBody) {
             let debounceTimer;
             
-            searchInput.addEventListener('input', function() {
+            function performSearch() {
                 clearTimeout(debounceTimer);
-                const query = this.value.trim().toLowerCase();
+                const query = searchInput.value.trim().toLowerCase();
+                const searchNotes = noteSearchToggle ? noteSearchToggle.checked : false;
                 
                 debounceTimer = setTimeout(() => {
                     const rows = tableBody.querySelectorAll('tr');
@@ -327,15 +333,19 @@
                         const nameText = customerNameText ? customerNameText.textContent.trim().toLowerCase() : '';
                         const phoneText = customerPhoneText ? customerPhoneText.textContent.trim().toLowerCase().replace(/\s+/g, '') : '';
                         
+                        // Get notes from data attribute
+                        const notesText = (row.dataset.notes || '').toLowerCase();
+                        
                         if (query.length === 0) {
                             // Show all rows when search is empty
                             row.style.display = '';
                         } else {
-                            // Filter rows based on search query - check name and phone
+                            // Filter rows based on search query - check name, phone, and optionally notes
                             const matchesName = nameText.includes(query) || nameFromData.includes(query);
                             const matchesPhone = phoneText.includes(query);
+                            const matchesNotes = searchNotes && notesText.includes(query);
                             
-                            if (matchesName || matchesPhone) {
+                            if (matchesName || matchesPhone || matchesNotes) {
                                 row.style.display = '';
                             } else {
                                 row.style.display = 'none';
@@ -343,7 +353,14 @@
                         }
                     });
                 }, 150);
-            });
+            }
+            
+            searchInput.addEventListener('input', performSearch);
+            
+            // Also search when note toggle changes
+            if (noteSearchToggle) {
+                noteSearchToggle.addEventListener('change', performSearch);
+            }
         }
     });
 
