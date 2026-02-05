@@ -1565,11 +1565,14 @@ def use_donation(donation_id, customer_id, amount, notes=None):
     with get_db() as conn:
         cursor = conn.cursor()
         
-        # Check if donation exists
-        cursor.execute('SELECT amount FROM donations WHERE id = ?', (donation_id,))
+        # Check if donation exists and get donor name
+        cursor.execute('SELECT amount, donor_name FROM donations WHERE id = ?', (donation_id,))
         donation_row = cursor.fetchone()
         if not donation_row:
             return {'success': False, 'message': 'Donation not found'}
+        
+        donation_amount = donation_row['amount']
+        donor_name = donation_row['donor_name']
         
         # Calculate remaining amount using the same connection
         cursor.execute('''
@@ -1578,7 +1581,7 @@ def use_donation(donation_id, customer_id, amount, notes=None):
             WHERE donation_id = ?
         ''', (donation_id,))
         amount_used = cursor.fetchone()['amount_used']
-        amount_remaining = donation_row['amount'] - amount_used
+        amount_remaining = donation_amount - amount_used
         
         if amount_remaining < amount:
             return {'success': False, 'message': f'Not enough remaining. Available: ${amount_remaining:.2f}'}
@@ -1606,7 +1609,9 @@ def use_donation(donation_id, customer_id, amount, notes=None):
         new_balance = current_balance - amount
         
         # Apply the donation as a payment for the customer (within the same connection)
-        payment_notes = f'Donation applied. Usage ID: {usage_id}' + (f' - {notes}' if notes else '')
+        # Show donor name or "Anonymous" instead of usage ID
+        donor_display = donor_name if donor_name and donor_name.strip() else 'Anonymous'
+        payment_notes = f'Donation from {donor_display}' + (f' - {notes}' if notes else '')
         cursor.execute('''
             INSERT INTO ledger (customer_id, entry_type, amount, balance_after, payment_method, notes, created_by, created_at)
             VALUES (?, 'PAYMENT', ?, ?, ?, ?, ?, ?)
