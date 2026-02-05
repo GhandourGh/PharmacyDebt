@@ -7,11 +7,11 @@
     <div style="display: flex; align-items: center; gap: 1rem;">
         {% if customer.profile_image %}
         <img src="{{ url_for('static', filename='uploads/' + customer.profile_image) }}" alt="{{ customer.name }}" style="width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 3px solid #e2e8f0;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-        <div style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: none; align-items: center; justify-content: center; border: 3px solid #e2e8f0; color: white; font-size: 24px; font-weight: bold;">
+        <div style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #2563eb); display: none; align-items: center; justify-content: center; border: 3px solid #e2e8f0; color: white; font-size: 24px; font-weight: bold;">
             {{ customer.name[0].upper() }}
         </div>
         {% else %}
-        <div style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; border: 3px solid #e2e8f0; color: white; font-size: 24px; font-weight: bold;">
+        <div style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #2563eb); display: flex; align-items: center; justify-content: center; border: 3px solid #e2e8f0; color: white; font-size: 24px; font-weight: bold;">
             {{ customer.name[0].upper() }}
         </div>
         {% endif %}
