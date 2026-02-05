@@ -1586,14 +1586,7 @@ def use_donation(donation_id, customer_id, amount, notes=None):
         if amount_remaining < amount:
             return {'success': False, 'message': f'Not enough remaining. Available: ${amount_remaining:.2f}'}
         
-        # Record the usage
-        cursor.execute('''
-            INSERT INTO donation_usage (donation_id, customer_id, amount_used, notes)
-            VALUES (?, ?, ?, ?)
-        ''', (donation_id, customer_id, amount, notes))
-        usage_id = cursor.lastrowid
-        
-        # Calculate current customer balance using the same connection
+        # Calculate current customer balance to check if amount exceeds debt
         cursor.execute('''
             SELECT COALESCE(SUM(
                 CASE
@@ -1606,6 +1599,19 @@ def use_donation(donation_id, customer_id, amount, notes=None):
             FROM ledger WHERE customer_id = ?
         ''', (customer_id,))
         current_balance = cursor.fetchone()['balance']
+        
+        # Check if donation amount exceeds customer's debt
+        if amount > current_balance:
+            return {'success': False, 'message': f'Cannot apply more than the customer owes. Customer owes: ${current_balance:.2f}'}
+        
+        # Record the usage
+        cursor.execute('''
+            INSERT INTO donation_usage (donation_id, customer_id, amount_used, notes)
+            VALUES (?, ?, ?, ?)
+        ''', (donation_id, customer_id, amount, notes))
+        usage_id = cursor.lastrowid
+        
+        # Calculate new balance after payment
         new_balance = current_balance - amount
         
         # Apply the donation as a payment for the customer (within the same connection)

@@ -90,9 +90,22 @@
 
         <div class="form-group">
             <label class="form-label">Amount to Use *</label>
-            <input type="number" name="amount" class="form-control" required step="0.01" min="0.01" max="{{ donation.amount_remaining }}" placeholder="Enter amount" value="{{ donation.amount_remaining }}">
-            <small style="color: #64748b; font-size: 0.875rem; margin-top: 0.25rem; display: block;">
+            <input type="number" 
+                   name="amount" 
+                   id="amount_input" 
+                   class="form-control" 
+                   required 
+                   step="0.01" 
+                   min="0.01" 
+                   max="{{ donation.amount_remaining }}" 
+                   placeholder="Enter amount" 
+                   value="{{ donation.amount_remaining }}">
+            <small id="amount_help_text" style="color: #64748b; font-size: 0.875rem; margin-top: 0.25rem; display: block;">
                 Maximum available: ${{ "%.2f"|format(donation.amount_remaining) }}
+            </small>
+            <small id="amount_error_text" style="color: #dc2626; font-size: 0.875rem; margin-top: 0.25rem; display: none; font-weight: 500;">
+                <i data-lucide="alert-circle" style="width: 14px; height: 14px; vertical-align: middle;"></i>
+                Cannot apply more than the customer owes.
             </small>
         </div>
 
@@ -132,8 +145,12 @@
     const selectedCustomerDebt = document.getElementById('selected_customer_debt');
     const clearCustomerBtn = document.getElementById('clear_customer_btn');
     const allCustomers = Array.from(customerSelect.options).slice(1); // Skip first empty option
+    const amountInput = document.getElementById('amount_input');
+    const amountHelpText = document.getElementById('amount_help_text');
+    const amountErrorText = document.getElementById('amount_error_text');
     
     let selectedCustomerId = null;
+    let selectedCustomerDebtAmount = 0;
     
     // Show search input, hide select
     customerSelect.style.display = 'none';
@@ -209,6 +226,22 @@
             selectedCustomerDebt.textContent = debtInfo || `Owes $${parseFloat(debtAmount).toFixed(2)}`;
             customerSelectedDisplay.style.display = 'flex';
             
+            // Store customer debt amount for validation
+            selectedCustomerDebtAmount = parseFloat(debtAmount) || 0;
+            
+            // Update amount input max and validate
+            const maxDonation = parseFloat('{{ donation.amount_remaining }}');
+            const maxAmount = Math.min(maxDonation, selectedCustomerDebtAmount);
+            amountInput.max = maxAmount;
+            
+            // If current amount exceeds customer debt, set it to customer debt
+            if (parseFloat(amountInput.value) > selectedCustomerDebtAmount) {
+                amountInput.value = selectedCustomerDebtAmount.toFixed(2);
+            }
+            
+            // Validate amount
+            validateAmount();
+            
             customerResults.style.display = 'none';
             
             // Refresh icons after DOM update
@@ -248,13 +281,41 @@
         }
     });
     
-    // Ensure customer is selected before form submit
+    // Validate amount against customer debt
+    function validateAmount() {
+        const amount = parseFloat(amountInput.value) || 0;
+        
+        if (selectedCustomerId && amount > selectedCustomerDebtAmount) {
+            amountErrorText.style.display = 'block';
+            amountInput.style.borderColor = '#dc2626';
+            amountHelpText.style.display = 'none';
+            return false;
+        } else {
+            amountErrorText.style.display = 'none';
+            amountInput.style.borderColor = '';
+            amountHelpText.style.display = 'block';
+            return true;
+        }
+    }
+    
+    // Validate amount on input
+    amountInput.addEventListener('input', function() {
+        validateAmount();
+    });
+    
+    // Ensure customer is selected and amount is valid before form submit
     const form = document.querySelector('form');
     form.addEventListener('submit', function(e) {
         if (!selectedCustomerId) {
             e.preventDefault();
             alert('Please select a customer from the search results');
             customerSearchInput.focus();
+            return false;
+        }
+        
+        if (!validateAmount()) {
+            e.preventDefault();
+            amountInput.focus();
             return false;
         }
     });
