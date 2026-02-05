@@ -416,7 +416,8 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
                 else:
                     items_col = "-"
             elif entry_type == 'PAYMENT':
-                payment_col = f"-${abs(amount):.2f}"
+                # Format payment in green color
+                payment_col = Paragraph(f"<font color='green'>-${abs(amount):.2f}</font>", styles['Normal'])
                 type_str = "Payment"
                 items_col = "-"
             else:
