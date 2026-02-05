@@ -12,7 +12,7 @@ from validators import (
 import os
 
 app = Flask(__name__)
-app.secret_key = 'pharmacy-thabet-secret-key'
+app.secret_key = os.environ.get('SECRET_KEY', 'pharmacy-thabet-secret-key')
 
 # Configuration for file uploads
 UPLOAD_FOLDER = 'static/uploads'
@@ -21,9 +21,6 @@ MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
 # Create uploads directory if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # Initialize database on startup
 db.init_db()
@@ -203,6 +200,13 @@ def add_customer():
                 file = request.files['profile_image']
                 if file and file.filename:
                     try:
+                        # Validate file size
+                        file.seek(0, os.SEEK_END)
+                        file_size = file.tell()
+                        file.seek(0)
+                        if file_size > MAX_FILE_SIZE:
+                            raise ValidationError(f'File size ({file_size / 1024 / 1024:.2f}MB) exceeds maximum allowed size ({MAX_FILE_SIZE / 1024 / 1024}MB)')
+                        
                         # Validate file type including MIME check
                         validate_file_type(
                             file,
@@ -299,6 +303,13 @@ def edit_customer(customer_id):
                 file = request.files['profile_image']
                 if file and file.filename:
                     try:
+                        # Validate file size
+                        file.seek(0, os.SEEK_END)
+                        file_size = file.tell()
+                        file.seek(0)
+                        if file_size > MAX_FILE_SIZE:
+                            raise ValidationError(f'File size ({file_size / 1024 / 1024:.2f}MB) exceeds maximum allowed size ({MAX_FILE_SIZE / 1024 / 1024}MB)')
+                        
                         # Validate file type including MIME check
                         validate_file_type(
                             file,
@@ -636,46 +647,68 @@ def get_product_api(product_id):
 @app.route('/reports')
 def reports():
     try:
-        # Date range with defaults
-        default_end = datetime.now()
-        default_start = default_end - timedelta(days=30)
-        start_str = request.args.get('start_date', default_start.strftime('%Y-%m-%d'))
-        end_str = request.args.get('end_date', default_end.strftime('%Y-%m-%d'))
+        report_type = request.args.get('type', 'transactions')
+        
+        # Handle different report types
+        if report_type == 'aging':
+            aging_data = db.get_aging_report()
+            return render_template('reports_aging.html', aging_data=aging_data)
+        
+        elif report_type == 'overdue':
+            days = request.args.get('days', 30, type=int)
+            overdue_customers = db.get_overdue_customers(days)
+            return render_template('reports_overdue.html', 
+                                 overdue_customers=overdue_customers, 
+                                 days=days)
+        
+        elif report_type == 'daily':
+            selected_date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+            daily_stats = db.get_daily_reconciliation(selected_date)
+            return render_template('reports_daily.html', 
+                                 daily_stats=daily_stats,
+                                 selected_date=selected_date)
+        
+        else:  # Default: transactions report
+            # Date range with defaults
+            default_end = datetime.now()
+            default_start = default_end - timedelta(days=30)
+            start_str = request.args.get('start_date', default_start.strftime('%Y-%m-%d'))
+            end_str = request.args.get('end_date', default_end.strftime('%Y-%m-%d'))
 
-        # Validate date range
-        try:
-            validate_date_range(start_str, end_str)
-        except ValidationError as e:
-            flash(e.message, 'error')
-            # Reset to defaults if invalid
-            start_str = default_start.strftime('%Y-%m-%d')
-            end_str = default_end.strftime('%Y-%m-%d')
-
-        # Validate customer_id if provided
-        customer_id = request.args.get('customer_id', '')
-        customer_id_int = None
-
-        if customer_id:
+            # Validate date range
             try:
-                customer_id_int = int(customer_id)
-            except (ValueError, TypeError):
-                flash('Invalid customer ID', 'error')
-                customer_id = ''
+                validate_date_range(start_str, end_str)
+            except ValidationError as e:
+                flash(e.message, 'error')
+                # Reset to defaults if invalid
+                start_str = default_start.strftime('%Y-%m-%d')
+                end_str = default_end.strftime('%Y-%m-%d')
 
-        customers = db.get_all_customers()
-        selected_customer = db.get_customer(customer_id_int) if customer_id_int else None
+            # Validate customer_id if provided
+            customer_id = request.args.get('customer_id', '')
+            customer_id_int = None
 
-        transactions = db.get_transactions_by_date(start_str, end_str, customer_id_int)
-        total_debt = db.get_debt_by_date(start_str, end_str, customer_id_int)
+            if customer_id:
+                try:
+                    customer_id_int = int(customer_id)
+                except (ValueError, TypeError):
+                    flash('Invalid customer ID', 'error')
+                    customer_id = ''
 
-        return render_template('reports.html',
-                             transactions=transactions,
-                             total_debt=total_debt,
-                             customers=customers,
-                             start_date=start_str,
-                             end_date=end_str,
-                             selected_customer_id=customer_id,
-                             selected_customer=selected_customer)
+            customers = db.get_all_customers()
+            selected_customer = db.get_customer(customer_id_int) if customer_id_int else None
+
+            transactions = db.get_transactions_by_date(start_str, end_str, customer_id_int)
+            total_debt = db.get_debt_by_date(start_str, end_str, customer_id_int)
+
+            return render_template('reports.html',
+                                 transactions=transactions,
+                                 total_debt=total_debt,
+                                 customers=customers,
+                                 start_date=start_str,
+                                 end_date=end_str,
+                                 selected_customer_id=customer_id,
+                                 selected_customer=selected_customer)
 
     except Exception as e:
         flash(f'Error loading reports: {str(e)}', 'error')
@@ -705,6 +738,77 @@ def export_pdf():
             filename = f"debt_report_{customer['name']}_{start_str}_to_{end_str}.pdf"
 
     return send_file(pdf_buffer, as_attachment=True, download_name=filename, mimetype='application/pdf')
+
+@app.route('/reports/export-aging-pdf')
+def export_aging_pdf():
+    """Export aging report as PDF"""
+    try:
+        aging_data = db.get_aging_report()
+        
+        # Calculate totals
+        total_0_30 = sum(c.get('days_0_30', 0) for c in aging_data)
+        total_31_60 = sum(c.get('days_31_60', 0) for c in aging_data)
+        total_61_90 = sum(c.get('days_61_90', 0) for c in aging_data)
+        total_90_plus = sum(c.get('days_90_plus', 0) for c in aging_data)
+        grand_total = sum(c.get('total_debt', 0) for c in aging_data)
+        
+        # Convert to format expected by PDF generator (similar to debt report)
+        customers_data = []
+        for customer in aging_data:
+            customers_data.append({
+                'name': customer.get('name', ''),
+                'phone': customer.get('phone', ''),
+                'debt': customer.get('total_debt', 0),
+                'items': []  # Aging report doesn't have items
+            })
+        
+        # Use existing PDF generator with custom title
+        pdf_buffer = generate_debt_report_by_date_range(
+            customers_data, 
+            grand_total, 
+            datetime.now().strftime('%Y-%m-%d'),
+            datetime.now().strftime('%Y-%m-%d')
+        )
+        
+        filename = f"aging_report_{datetime.now().strftime('%Y%m%d')}.pdf"
+        return send_file(pdf_buffer, as_attachment=True, download_name=filename, mimetype='application/pdf')
+    except Exception as e:
+        flash(f'Error generating aging report: {str(e)}', 'error')
+        return redirect(url_for('reports', type='aging'))
+
+@app.route('/reports/export-overdue-pdf')
+def export_overdue_pdf():
+    """Export overdue report as PDF"""
+    try:
+        days = request.args.get('days', 30, type=int)
+        overdue_customers = db.get_overdue_customers(days)
+        
+        # Calculate total
+        total_debt = sum(c.get('debt', 0) for c in overdue_customers)
+        
+        # Convert to format expected by PDF generator
+        customers_data = []
+        for customer in overdue_customers:
+            customers_data.append({
+                'name': customer.get('name', ''),
+                'phone': customer.get('phone', ''),
+                'debt': customer.get('debt', 0),
+                'items': []  # Overdue report doesn't have items
+            })
+        
+        # Use existing PDF generator
+        pdf_buffer = generate_debt_report_by_date_range(
+            customers_data,
+            total_debt,
+            datetime.now().strftime('%Y-%m-%d'),
+            datetime.now().strftime('%Y-%m-%d')
+        )
+        
+        filename = f"overdue_report_{days}days_{datetime.now().strftime('%Y%m%d')}.pdf"
+        return send_file(pdf_buffer, as_attachment=True, download_name=filename, mimetype='application/pdf')
+    except Exception as e:
+        flash(f'Error generating overdue report: {str(e)}', 'error')
+        return redirect(url_for('reports', type='overdue'))
 
 @app.route('/customers/<int:customer_id>/export-pdf')
 def export_customer_pdf(customer_id):
@@ -755,7 +859,18 @@ def download_all_debts_pdf():
 
 @app.route('/admin/delete-all-customers', methods=['POST'])
 def delete_all_customers():
-    """Delete all customer data - use with caution!"""
+    """
+    Delete all customer data - use with caution!
+    
+    WARNING: This route is unprotected and should be secured in production.
+    Consider adding authentication/authorization checks before allowing access.
+    """
+    # Basic protection: require confirmation parameter
+    confirm = request.form.get('confirm', '').lower()
+    if confirm != 'delete all':
+        flash('Deletion requires confirmation. Please type "delete all" to confirm.', 'error')
+        return redirect(url_for('dashboard'))
+    
     try:
         db.delete_all_customer_data()
         flash('All customer data has been deleted successfully.', 'success')
@@ -858,10 +973,42 @@ def use_donation(donation_id):
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
     if request.method == 'POST':
-        flash('Settings saved.', 'success')
-        return redirect(url_for('settings'))
-
-    return render_template('settings.html')
+        try:
+            # Get form values
+            default_grace_period = request.form.get('default_grace_period', '7')
+            overdue_threshold_days = request.form.get('overdue_threshold_days', '30')
+            
+            # Validate and save settings
+            try:
+                default_grace_period_int = int(default_grace_period)
+                overdue_threshold_days_int = int(overdue_threshold_days)
+                
+                if default_grace_period_int < 0:
+                    raise ValidationError('Default grace period cannot be negative')
+                if overdue_threshold_days_int < 1:
+                    raise ValidationError('Overdue threshold must be at least 1 day')
+                
+                db.set_setting('default_grace_period', str(default_grace_period_int))
+                db.set_setting('overdue_threshold_days', str(overdue_threshold_days_int))
+                
+                flash('Settings saved successfully.', 'success')
+            except ValueError:
+                flash('Invalid input. Please enter valid numbers.', 'error')
+            except ValidationError as e:
+                flash(e.message, 'error')
+            
+            return redirect(url_for('settings'))
+        except Exception as e:
+            flash(f'An unexpected error occurred: {str(e)}', 'error')
+            return redirect(url_for('settings'))
+    
+    # Load settings from database
+    settings_dict = {
+        'default_grace_period': db.get_setting('default_grace_period') or '7',
+        'overdue_threshold_days': db.get_setting('overdue_threshold_days') or '30'
+    }
+    
+    return render_template('settings.html', settings=settings_dict)
 
 if __name__ == '__main__':
     import sys
