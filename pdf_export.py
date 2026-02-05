@@ -348,7 +348,7 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
     summary_data = [
         ['Total Debts', f"${total_debts:.2f}"],
         ['Total Payments', f"${total_payments:.2f}"],
-        ['Current Balance', f"${total_debt:.2f}"]
+        ['Debt Left', f"${total_debt:.2f}"]
     ]
     
     summary_table = Table(summary_data, colWidths=[6*cm, 6*cm])
@@ -372,9 +372,9 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
     
     elements.append(Spacer(1, 20))
 
-    # Current Balance (highlighted)
+    # Debt Left (highlighted)
     balance_color = "red" if total_debt > 0 else "green"
-    balance_text = "Outstanding Balance" if total_debt > 0 else "Credit Balance"
+    balance_text = "Debt Left" if total_debt > 0 else "Credit Balance"
     elements.append(Paragraph(f"<b>{balance_text}: <font color='{balance_color}'>${abs(total_debt):.2f}</font></b>", balance_style))
 
     elements.append(Spacer(1, 20))
