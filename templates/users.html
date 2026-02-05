@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}Users - Pharmacy Thabet{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i data-lucide="users" class="icon-info"></i>
+        Users
+    </h1>
+    <a href="{{ url_for('add_user') }}" class="btn btn-primary">
+        <i data-lucide="user-plus"></i>
+        Add User
+    </a>
+</div>
+
+<!-- Search -->
+<div class="search-container">
+    <span class="search-icon">
+        <i data-lucide="search"></i>
+    </span>
+    <input type="text" id="searchInput" class="search-input" placeholder="Search users by name or email...">
+</div>
+
+<div class="card card-info">
+    <div class="card-header">
+        <h2 class="card-title">
+            <i data-lucide="list"></i>
+            All Users
+        </h2>
+        <span class="badge badge-info">
+            {{ users|length if users else 0 }} total
+        </span>
+    </div>
+
+    {% if users %}
+    <div class="table-container">
+        <table class="table-modern">
+            <thead>
+                <tr>
+                    <th>
+                        <i data-lucide="user" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i>
+                        Name
+                    </th>
+                    <th>
+                        <i data-lucide="briefcase" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i>
+                        Role
+                    </th>
+                    <th>
+                        <i data-lucide="activity" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i>
+                        Status
+                    </th>
+                    <th style="text-align: center;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <!-- User Cell with Avatar -->
+                    <td>
+                        <div class="user-cell">
+                            <div class="user-avatar">
+                                {% if user.avatar %}
+                                <img src="{{ user.avatar }}" alt="{{ user.name }}">
+                                {% else %}
+                                <span class="avatar-initials">{{ user.name[:2]|upper }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="user-info-cell">
+                                <span class="user-name">{{ user.name }}</span>
+                                <span class="user-email">{{ user.email }}</span>
+                            </div>
+                        </div>
+                    </td>
+                    
+                    <!-- Role Cell -->
+                    <td>
+                        <div class="role-cell">
+                            <span class="role-title">{{ user.role }}</span>
+                            {% if user.team %}
+                            <span class="role-team">{{ user.team }}</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    
+                    <!-- Status Cell with Chip -->
+                    <td>
+                        {% if user.status == 'active' %}
+                        <span class="status-chip status-active">
+                            <i data-lucide="check-circle" style="width: 12px; height: 12px;"></i>
+                            Active
+                        </span>
+                        {% elif user.status == 'paused' %}
+                        <span class="status-chip status-paused">
+                            <i data-lucide="pause-circle" style="width: 12px; height: 12px;"></i>
+                            Paused
+                        </span>
+                        {% elif user.status == 'vacation' %}
+                        <span class="status-chip status-vacation">
+                            <i data-lucide="sun" style="width: 12px; height: 12px;"></i>
+                            Vacation
+                        </span>
+                        {% else %}
+                        <span class="status-chip status-inactive">
+                            <i data-lucide="x-circle" style="width: 12px; height: 12px;"></i>
+                            Inactive
+                        </span>
+                        {% endif %}
+                    </td>
+                    
+                    <!-- Actions Cell -->
+                    <td>
+                        <div class="action-icons">
+                            <a href="{{ url_for('user_detail', user_id=user.id) if 'user_detail' in url_map else '#' }}" class="action-icon action-view" title="View Details">
+                                <i data-lucide="eye" style="width: 18px; height: 18px;"></i>
+                            </a>
+                            <a href="{{ url_for('edit_user', user_id=user.id) }}" class="action-icon action-edit" title="Edit User">
+                                <i data-lucide="edit-2" style="width: 18px; height: 18px;"></i>
+                            </a>
+                            <button type="button" class="action-icon action-delete" title="Delete User" onclick="confirmDelete({{ user.id }}, '{{ user.name }}')">
+                                <i data-lucide="trash-2" style="width: 18px; height: 18px;"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i data-lucide="users" style="width: 48px; height: 48px; opacity: 0.3;"></i>
+        <p>No users yet. Add your first user to get started.</p>
+        <a href="{{ url_for('add_user') }}" class="btn btn-primary" style="margin-top: 1rem;">
+            <i data-lucide="user-plus"></i>
+            Add User
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteModal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 class="modal-title" style="color: #dc2626;">
+                <i data-lucide="alert-triangle"></i>
+                Confirm Delete
+            </h3>
+            <button class="modal-close" onclick="closeDeleteModal()">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <p style="margin-bottom: 1.5rem;">Are you sure you want to delete <strong id="deleteUserName"></strong>? This action cannot be undone.</p>
+        <div class="btn-group" style="justify-content: flex-end;">
+            <button class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+            <form id="deleteForm" method="POST" style="display: inline;">
+                <button type="submit" class="btn btn-danger">
+                    <i data-lucide="trash-2"></i>
+                    Delete
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function confirmDelete(userId, userName) {
+        document.getElementById('deleteUserName').textContent = userName;
+        document.getElementById('deleteForm').action = '/users/' + userId + '/delete';
+        document.getElementById('deleteModal').classList.add('active');
+        lucide.createIcons();
+    }
+    
+    function closeDeleteModal() {
+        document.getElementById('deleteModal').classList.remove('active');
+    }
+    
+    // Close modal on outside click
+    document.getElementById('deleteModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeDeleteModal();
+        }
+    });
+</script>
+{% endblock %}

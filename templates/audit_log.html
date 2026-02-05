@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Log - Pharmacy Thabet{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i data-lucide="shield" class="icon-info"></i>
+        Audit Log
+    </h1>
+</div>
+
+<div class="card card-info">
+    <div class="card-header">
+        <h2 class="card-title">
+            <i data-lucide="list"></i>
+            Recent Activity
+        </h2>
+        <span class="badge badge-info">
+            {{ logs|length }} records
+        </span>
+    </div>
+
+    {% if logs %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th><i data-lucide="calendar" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i> Date/Time</th>
+                    <th><i data-lucide="user" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i> User</th>
+                    <th><i data-lucide="activity" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i> Action</th>
+                    <th><i data-lucide="database" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i> Table</th>
+                    <th><i data-lucide="hash" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i> Record ID</th>
+                    <th><i data-lucide="file-text" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i> Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td style="white-space: nowrap;">{{ log.timestamp[:19] if log.timestamp else '-' }}</td>
+                    <td>{{ log.username or 'System' }}</td>
+                    <td>
+                        <span class="badge {% if 'DELETE' in log.action or 'VOID' in log.action %}badge-debt{% elif 'CREATE' in log.action or 'ADD' in log.action %}badge-payment{% else %}badge-info{% endif %}">
+                            {{ log.action }}
+                        </span>
+                    </td>
+                    <td>{{ log.table_name or '-' }}</td>
+                    <td>{{ log.record_id or '-' }}</td>
+                    <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">{{ log.details or '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i data-lucide="shield" style="width: 48px; height: 48px; opacity: 0.3;"></i>
+        <p>No audit records found.</p>
+    </div>
+    {% endif %}
+</div>
+
+<div class="card" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #fbbf24;">
+    <p style="color: #92400e; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem;">
+        <i data-lucide="alert-triangle" style="width: 18px; height: 18px;"></i>
+        <span><strong>Compliance:</strong> Audit logs are immutable and cannot be deleted. They track all critical operations for security and compliance purposes.</span>
+    </p>
+</div>
+{% endblock %}

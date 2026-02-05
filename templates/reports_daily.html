@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}Daily Reconciliation - Pharmacy Thabet{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i data-lucide="calendar" class="icon-info"></i>
+        Daily Reconciliation
+    </h1>
+</div>
+
+<!-- Report Type Navigation -->
+<div class="report-nav" style="margin-bottom: 1.5rem; display: flex; gap: 0.5rem;">
+    <a href="{{ url_for('reports', type='transactions') }}" class="btn btn-secondary">
+        <i data-lucide="list"></i>
+        Transactions
+    </a>
+    <a href="{{ url_for('reports', type='aging') }}" class="btn btn-secondary">
+        <i data-lucide="clock"></i>
+        Aging
+    </a>
+    <a href="{{ url_for('reports', type='daily') }}" class="btn btn-primary">
+        <i data-lucide="calendar"></i>
+        Daily
+    </a>
+    <a href="{{ url_for('reports', type='overdue') }}" class="btn btn-secondary">
+        <i data-lucide="alert-triangle"></i>
+        Overdue
+    </a>
+</div>
+
+<!-- Date Filter -->
+<div class="card card-info">
+    <div class="card-header">
+        <h2 class="card-title">
+            <i data-lucide="filter"></i>
+            Select Date
+        </h2>
+    </div>
+    <form method="GET" class="filter-form">
+        <input type="hidden" name="type" value="daily">
+        <div class="form-group">
+            <label class="form-label">
+                <i data-lucide="calendar" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i>
+                Date
+            </label>
+            <input type="date" name="date" class="form-control" value="{{ selected_date }}">
+        </div>
+        <div class="form-group">
+            <label class="form-label">&nbsp;</label>
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="search"></i>
+                View
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Summary Stats -->
+<div class="stats-grid">
+    <div class="stat-card total-debt">
+        <div class="stat-header">
+            <div>
+                <div class="stat-label">
+                    <i data-lucide="trending-down" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i>
+                    Total New Debt
+                </div>
+                <div class="stat-value">${{ "%.2f"|format(daily_stats.total_debt or 0) }}</div>
+            </div>
+            <div class="stat-icon">
+                <i data-lucide="receipt" style="width: 24px; height: 24px;"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="stat-card" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-left: 4px solid #22c55e;">
+        <div class="stat-header">
+            <div>
+                <div class="stat-label">
+                    <i data-lucide="trending-up" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i>
+                    Total Payments
+                </div>
+                <div class="stat-value" style="color: #16a34a;">${{ "%.2f"|format(daily_stats.total_payments or 0) }}</div>
+            </div>
+            <div class="stat-icon" style="color: #22c55e;">
+                <i data-lucide="banknote" style="width: 24px; height: 24px;"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="stat-card" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-left: 4px solid #3b82f6;">
+        <div class="stat-header">
+            <div>
+                <div class="stat-label">
+                    <i data-lucide="activity" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i>
+                    Net Change
+                </div>
+                {% set net_change = (daily_stats.total_debt or 0) - (daily_stats.total_payments or 0) %}
+                <div class="stat-value" style="color: {% if net_change > 0 %}#dc2626{% else %}#16a34a{% endif %};">
+                    {% if net_change > 0 %}+{% endif %}${{ "%.2f"|format(net_change) }}
+                </div>
+            </div>
+            <div class="stat-icon" style="color: #3b82f6;">
+                <i data-lucide="git-compare" style="width: 24px; height: 24px;"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="stat-card customers-count">
+        <div class="stat-header">
+            <div>
+                <div class="stat-label">
+                    <i data-lucide="hash" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i>
+                    Transactions
+                </div>
+                <div class="stat-value">{{ daily_stats.transaction_count or 0 }}</div>
+            </div>
+            <div class="stat-icon">
+                <i data-lucide="layers" style="width: 24px; height: 24px;"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Breakdown Cards -->
+<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem;">
+    <div class="card card-debt">
+        <div class="card-header">
+            <h2 class="card-title">
+                <i data-lucide="trending-down"></i>
+                New Debt Added
+            </h2>
+            <span class="badge badge-debt">
+                {{ daily_stats.debt_count or 0 }} entries
+            </span>
+        </div>
+        <div style="padding: 1.5rem;">
+            <div style="font-size: 2rem; font-weight: bold; color: #dc2626;">
+                ${{ "%.2f"|format(daily_stats.total_debt or 0) }}
+            </div>
+            <p style="color: #64748b; margin-top: 0.5rem;">Total debt recorded on {{ selected_date }}</p>
+        </div>
+    </div>
+
+    <div class="card card-payment">
+        <div class="card-header">
+            <h2 class="card-title">
+                <i data-lucide="trending-up"></i>
+                Payments Received
+            </h2>
+            <span class="badge badge-payment">
+                {{ daily_stats.payment_count or 0 }} payments
+            </span>
+        </div>
+        <div style="padding: 1.5rem;">
+            <div style="font-size: 2rem; font-weight: bold; color: #16a34a;">
+                ${{ "%.2f"|format(daily_stats.total_payments or 0) }}
+            </div>
+            <p style="color: #64748b; margin-top: 0.5rem;">Total payments collected on {{ selected_date }}</p>
+        </div>
+    </div>
+</div>
+
+<!-- Additional Info -->
+<div class="card" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #bfdbfe; margin-top: 1.5rem;">
+    <p style="color: #1e40af; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem;">
+        <i data-lucide="info" style="width: 18px; height: 18px;"></i>
+        <span><strong>Daily Report:</strong> This shows all financial activity for the selected date. Use this for end-of-day reconciliation to ensure all transactions are accounted for.</span>
+    </p>
+</div>
+{% endblock %}

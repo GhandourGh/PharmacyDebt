@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Add User - Pharmacy Thabet{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i data-lucide="user-plus" class="icon-info"></i>
+        Add New User
+    </h1>
+</div>
+
+<div class="card card-info">
+    <form method="POST">
+        <div class="form-group">
+            <label class="form-label">
+                <i data-lucide="user" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"></i>
+                Username *
+            </label>
+            <input type="text" name="username" class="form-control" required placeholder="Enter username">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">
+                <i data-lucide="lock" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"></i>
+                Password *
+            </label>
+            <input type="password" name="password" class="form-control" required placeholder="Enter password">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">
+                <i data-lucide="badge" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"></i>
+                Full Name *
+            </label>
+            <input type="text" name="full_name" class="form-control" required placeholder="Enter full name">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">
+                <i data-lucide="shield" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"></i>
+                Role *
+            </label>
+            <select name="role" class="form-control" required>
+                <option value="clerk">Clerk - Basic operations</option>
+                <option value="manager">Manager - Can void/write-off</option>
+                <option value="admin">Admin - Full access</option>
+            </select>
+        </div>
+
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="user-plus"></i>
+                Create User
+            </button>
+            <a href="{{ url_for('users') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

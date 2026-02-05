@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Add Donation - Pharmacy Thabet{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i data-lucide="heart" class="icon-info"></i>
+        Add Donation
+    </h1>
+</div>
+
+<div class="card" style="max-width: 500px;">
+    <form method="POST">
+        <div class="form-group">
+            <label class="form-label">Amount *</label>
+            <input type="number" name="amount" class="form-control" required step="0.01" min="0.01" placeholder="Enter donation amount">
+            <small style="color: #64748b; font-size: 0.875rem; margin-top: 0.25rem; display: block;">
+                How much money is being donated?
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Donor Name (optional)</label>
+            <input type="text" name="donor_name" class="form-control" placeholder="Who is making this donation?">
+            <small style="color: #64748b; font-size: 0.875rem; margin-top: 0.25rem; display: block;">
+                Leave blank if anonymous
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Notes (optional)</label>
+            <textarea name="notes" class="form-control" rows="3" placeholder="Any additional notes about this donation..."></textarea>
+        </div>
+
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="check"></i>
+                Add Donation
+            </button>
+            <a href="{{ url_for('donations') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<div class="card" style="max-width: 500px; margin-top: 1rem; background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #bfdbfe;">
+    <p style="color: #1e40af; font-size: 0.9rem; display: flex; align-items: start; gap: 0.5rem;">
+        <i data-lucide="info" style="width: 18px; height: 18px; margin-top: 2px; flex-shrink: 0;"></i>
+        <span><strong>How it works:</strong> When someone donates money, it's added here. Later, when a customer needs help paying their debt, you can use these donations to help them. The donation will be applied as a payment to their account.</span>
+    </p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    lucide.createIcons();
+</script>
+{% endblock %}
+
+
+
+
+

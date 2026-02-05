@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Overdue Accounts - Pharmacy Thabet{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i data-lucide="alert-triangle" class="icon-debt"></i>
+        Overdue Accounts
+    </h1>
+</div>
+
+<!-- Report Type Navigation -->
+<div class="report-nav" style="margin-bottom: 1.5rem; display: flex; gap: 0.5rem;">
+    <a href="{{ url_for('reports', type='transactions') }}" class="btn btn-secondary">
+        <i data-lucide="list"></i>
+        Transactions
+    </a>
+    <a href="{{ url_for('reports', type='aging') }}" class="btn btn-secondary">
+        <i data-lucide="clock"></i>
+        Aging
+    </a>
+    <a href="{{ url_for('reports', type='daily') }}" class="btn btn-secondary">
+        <i data-lucide="calendar"></i>
+        Daily
+    </a>
+    <a href="{{ url_for('reports', type='overdue') }}" class="btn btn-primary">
+        <i data-lucide="alert-triangle"></i>
+        Overdue
+    </a>
+</div>
+
+<!-- Filter -->
+<div class="card card-info">
+    <div class="card-header">
+        <h2 class="card-title">
+            <i data-lucide="filter"></i>
+            Filter
+        </h2>
+    </div>
+    <form method="GET" class="filter-form">
+        <input type="hidden" name="type" value="overdue">
+        <div class="form-group">
+            <label class="form-label">
+                <i data-lucide="calendar" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i>
+                Minimum Days Overdue
+            </label>
+            <select name="days" class="form-control">
+                <option value="30" {% if days == 30 %}selected{% endif %}>30+ days</option>
+                <option value="60" {% if days == 60 %}selected{% endif %}>60+ days</option>
+                <option value="90" {% if days == 90 %}selected{% endif %}>90+ days</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">&nbsp;</label>
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="search"></i>
+                Filter
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Summary -->
+<div class="stats-grid">
+    <div class="stat-card total-debt">
+        <div class="stat-header">
+            <div>
+                <div class="stat-label">
+                    <i data-lucide="alert-circle" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i>
+                    Overdue Customers
+                </div>
+                <div class="stat-value">{{ overdue_customers|length }}</div>
+            </div>
+            <div class="stat-icon">
+                <i data-lucide="users" style="width: 24px; height: 24px;"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="stat-card" style="background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%); border-left: 4px solid #dc2626;">
+        <div class="stat-header">
+            <div>
+                <div class="stat-label">
+                    <i data-lucide="dollar-sign" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i>
+                    Total Overdue Amount
+                </div>
+                {% set total_overdue = overdue_customers|sum(attribute='debt') %}
+                <div class="stat-value" style="color: #dc2626;">${{ "%.2f"|format(total_overdue) }}</div>
+            </div>
+            <div class="stat-icon" style="color: #dc2626;">
+                <i data-lucide="alert-triangle" style="width: 24px; height: 24px;"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Overdue Table -->
+<div class="card card-debt">
+    <div class="card-header">
+        <h2 class="card-title">
+            <i data-lucide="list"></i>
+            Accounts {{ days }}+ Days Overdue
+        </h2>
+        <span class="badge badge-debt">
+            {{ overdue_customers|length }} accounts
+        </span>
+    </div>
+
+    {% if overdue_customers %}
+    <div class="table-container">
+        <table class="table-debt">
+            <thead>
+                <tr>
+                    <th><i data-lucide="user" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i> Customer</th>
+                    <th><i data-lucide="phone" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i> Phone</th>
+                    <th><i data-lucide="dollar-sign" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i> Amount Owed</th>
+                    <th><i data-lucide="calendar" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i> Days Overdue</th>
+                    <th><i data-lucide="calendar" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i> Last Activity</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in overdue_customers %}
+                <tr>
+                    <td>
+                        <a href="{{ url_for('customer_detail', customer_id=customer.id) }}" style="display: flex; align-items: center; gap: 0.5rem;">
+                            <i data-lucide="user" style="width: 16px; height: 16px; color: #dc2626;"></i>
+                            <strong>{{ customer.name }}</strong>
+                        </a>
+                    </td>
+                    <td>{{ customer.phone or '-' }}</td>
+                    <td><span class="amount debt">${{ "%.2f"|format(customer.debt) }}</span></td>
+                    <td>
+                        <span class="badge badge-debt">
+                            {{ customer.days_overdue or days }}+ days
+                        </span>
+                    </td>
+                    <td>{{ customer.last_activity[:10] if customer.last_activity else '-' }}</td>
+                    <td>
+                        <div class="btn-group">
+                            <a href="{{ url_for('customer_detail', customer_id=customer.id) }}" class="btn btn-secondary btn-sm">
+                                <i data-lucide="eye" style="width: 14px; height: 14px;"></i>
+                                View
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i data-lucide="check-circle" style="width: 48px; height: 48px; opacity: 0.3; color: #22c55e;"></i>
+        <p>No accounts are {{ days }}+ days overdue.</p>
+    </div>
+    {% endif %}
+</div>
+
+{% if overdue_customers %}
+<div class="card" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #fbbf24;">
+    <p style="color: #92400e; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem;">
+        <i data-lucide="alert-triangle" style="width: 18px; height: 18px;"></i>
+        <span><strong>Action Required:</strong> Consider contacting these customers about their overdue balances. Managers can perform write-offs for uncollectable debt.</span>
+    </p>
+</div>
+{% endif %}
+{% endblock %}

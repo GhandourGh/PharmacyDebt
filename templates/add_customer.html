@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}Add Customer - Pharmacy Thabet{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i data-lucide="user-plus" class="icon-info"></i>
+        Add Customer
+    </h1>
+</div>
+
+<div class="card card-info" style="max-width: 500px;">
+    <form method="POST" enctype="multipart/form-data" id="addCustomerForm" onsubmit="return validateCustomerForm()">
+        <div class="form-group">
+            <label class="form-label">Profile Image (optional)</label>
+            <div class="image-upload-container">
+                <div class="image-preview" id="imagePreview">
+                    <i data-lucide="user" style="width: 48px; height: 48px; color: #94a3b8;"></i>
+                </div>
+                <input type="file" name="profile_image" id="profileImage" class="image-input" accept="image/*" onchange="previewImage(event)">
+                <label for="profileImage" class="btn btn-secondary btn-sm">
+                    <i data-lucide="upload" style="width: 14px; height: 14px;"></i>
+                    Choose Image
+                </label>
+                <p style="font-size: 0.8rem; color: #64748b; margin-top: 0.5rem;">Recommended: Square image, max 5MB</p>
+                <div class="error-message" id="imageError">
+                    <i data-lucide="alert-circle" style="width: 12px; height: 12px;"></i>
+                    <span></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Name *</label>
+            <input type="text" name="name" id="customerName" class="form-control" required placeholder="Customer name" onblur="validateName()">
+            <div class="error-message" id="nameError">
+                <i data-lucide="alert-circle" style="width: 12px; height: 12px;"></i>
+                <span></span>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Phone (optional)</label>
+            <input type="text" name="phone" id="customerPhone" class="form-control" placeholder="Phone number" onblur="validatePhone()">
+            <div class="error-message" id="phoneError">
+                <i data-lucide="alert-circle" style="width: 12px; height: 12px;"></i>
+                <span></span>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Notes (optional)</label>
+            <textarea name="notes" id="customerNotes" class="form-control" rows="2" placeholder="Any notes" onblur="validateNotes()"></textarea>
+            <div class="error-message" id="notesError">
+                <i data-lucide="alert-circle" style="width: 12px; height: 12px;"></i>
+                <span></span>
+            </div>
+        </div>
+
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary" id="submitBtn">
+                <i data-lucide="user-plus"></i>
+                Add Customer
+            </button>
+            <a href="{{ url_for('customers') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<script>
+function previewImage(event) {
+    const file = event.target.files[0];
+    const errorEl = document.getElementById('imageError');
+    const input = document.getElementById('profileImage');
+
+    // Clear previous error
+    errorEl.classList.remove('show');
+    input.classList.remove('input-error');
+
+    if (file) {
+        // Validate file size (5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            showError('imageError', 'Image must be less than 5MB', 'profileImage');
+            input.value = '';
+            return;
+        }
+
+        // Validate file type
+        const allowedTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+        if (!allowedTypes.includes(file.type)) {
+            showError('imageError', 'Only PNG, JPG, GIF, or WebP images allowed', 'profileImage');
+            input.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const preview = document.getElementById('imagePreview');
+            preview.innerHTML = `<img src="${e.target.result}" alt="Preview" style="width: 100%; height: 100%; object-fit: cover;">`;
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function showError(errorId, message, inputId) {
+    const errorEl = document.getElementById(errorId);
+    const inputEl = inputId ? document.getElementById(inputId) : null;
+
+    errorEl.querySelector('span').textContent = message;
+    errorEl.classList.add('show');
+    if (inputEl) inputEl.classList.add('input-error');
+
+    lucide.createIcons();
+}
+
+function clearError(errorId, inputId) {
+    const errorEl = document.getElementById(errorId);
+    const inputEl = inputId ? document.getElementById(inputId) : null;
+
+    errorEl.classList.remove('show');
+    if (inputEl) inputEl.classList.remove('input-error');
+}
+
+function validateName() {
+    const input = document.getElementById('customerName');
+    const value = input.value.trim();
+
+    if (!value) {
+        showError('nameError', 'Name is required', 'customerName');
+        return false;
+    }
+
+    if (value.length < 2) {
+        showError('nameError', 'Name must be at least 2 characters', 'customerName');
+        return false;
+    }
+
+    if (value.length > 200) {
+        showError('nameError', 'Name must be less than 200 characters', 'customerName');
+        return false;
+    }
+
+    clearError('nameError', 'customerName');
+    input.classList.add('input-success');
+    return true;
+}
+
+function validatePhone() {
+    const input = document.getElementById('customerPhone');
+    const value = input.value.trim();
+
+    if (!value) {
+        clearError('phoneError', 'customerPhone');
+        return true; // Phone is optional
+    }
+
+    if (value.length > 50) {
+        showError('phoneError', 'Phone must be less than 50 characters', 'customerPhone');
+        return false;
+    }
+
+    // Basic phone validation (allows digits, spaces, dashes, parentheses, plus)
+    const phoneRegex = /^[\d\s\-\(\)\+]+$/;
+    if (!phoneRegex.test(value)) {
+        showError('phoneError', 'Please enter a valid phone number', 'customerPhone');
+        return false;
+    }
+
+    clearError('phoneError', 'customerPhone');
+    input.classList.add('input-success');
+    return true;
+}
+
+function validateNotes() {
+    const input = document.getElementById('customerNotes');
+    const value = input.value.trim();
+
+    if (value.length > 1000) {
+        showError('notesError', 'Notes must be less than 1000 characters', 'customerNotes');
+        return false;
+    }
+
+    clearError('notesError', 'customerNotes');
+    return true;
+}
+
+function validateCustomerForm() {
+    let isValid = true;
+
+    if (!validateName()) isValid = false;
+    if (!validatePhone()) isValid = false;
+    if (!validateNotes()) isValid = false;
+
+    if (!isValid) {
+        // Scroll to first error
+        const firstError = document.querySelector('.error-message.show');
+        if (firstError) {
+            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+
+    return isValid;
+}
+
+// Initialize icons when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    lucide.createIcons();
+});
+</script>
+{% endblock %}

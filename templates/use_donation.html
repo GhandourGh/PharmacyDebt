@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Use Donation - Pharmacy Thabet{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i data-lucide="gift" class="icon-info"></i>
+        Use Donation
+    </h1>
+</div>
+
+<div class="card" style="max-width: 600px; margin-bottom: 1.5rem;">
+    <div class="card-header">
+        <h2 class="card-title">Donation Details</h2>
+    </div>
+    <div style="padding: 1rem;">
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+            <div>
+                <div style="font-size: 0.875rem; color: #64748b; margin-bottom: 0.25rem;">Donation Amount</div>
+                <div style="font-size: 1.25rem; font-weight: 700; color: #1e293b;">${{ "%.2f"|format(donation.amount) }}</div>
+            </div>
+            <div>
+                <div style="font-size: 0.875rem; color: #64748b; margin-bottom: 0.25rem;">Available</div>
+                <div style="font-size: 1.25rem; font-weight: 700; color: #22c55e;">${{ "%.2f"|format(donation.amount_remaining) }}</div>
+            </div>
+        </div>
+        {% if donation.donor_name %}
+        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+            <div style="font-size: 0.875rem; color: #64748b; margin-bottom: 0.25rem;">Donor</div>
+            <div style="font-weight: 600;">{{ donation.donor_name }}</div>
+        </div>
+        {% endif %}
+        {% if donation.notes %}
+        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+            <div style="font-size: 0.875rem; color: #64748b; margin-bottom: 0.25rem;">Notes</div>
+            <div style="color: #475569;">{{ donation.notes }}</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card" style="max-width: 600px;">
+    <div class="card-header">
+        <h2 class="card-title">Apply to Customer</h2>
+    </div>
+    <form method="POST">
+        <div class="form-group">
+            <label class="form-label">Customer *</label>
+            <select name="customer_id" class="form-control" required>
+                <option value="">-- Select a customer --</option>
+                {% for customer in customers %}
+                {% if customer.debt > 0 %}
+                <option value="{{ customer.id }}">
+                    {{ customer.name }} - Owes ${{ "%.2f"|format(customer.debt) }}
+                </option>
+                {% endif %}
+                {% endfor %}
+            </select>
+            <small style="color: #64748b; font-size: 0.875rem; margin-top: 0.25rem; display: block;">
+                Only customers with outstanding debt are shown
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Amount to Use *</label>
+            <input type="number" name="amount" class="form-control" required step="0.01" min="0.01" max="{{ donation.amount_remaining }}" placeholder="Enter amount" value="{{ donation.amount_remaining }}">
+            <small style="color: #64748b; font-size: 0.875rem; margin-top: 0.25rem; display: block;">
+                Maximum available: ${{ "%.2f"|format(donation.amount_remaining) }}
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Notes (optional)</label>
+            <textarea name="notes" class="form-control" rows="3" placeholder="Any notes about this usage..."></textarea>
+        </div>
+
+        <div class="btn-group">
+            <button type="submit" class="btn btn-success">
+                <i data-lucide="check"></i>
+                Apply Donation
+            </button>
+            <a href="{{ url_for('donations') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<div class="card" style="max-width: 600px; margin-top: 1rem; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1px solid #86efac;">
+    <p style="color: #166534; font-size: 0.9rem; display: flex; align-items: start; gap: 0.5rem;">
+        <i data-lucide="info" style="width: 18px; height: 18px; margin-top: 2px; flex-shrink: 0;"></i>
+        <span><strong>Note:</strong> When you apply this donation, it will be recorded as a payment for the selected customer. The donation amount will be deducted from their debt balance.</span>
+    </p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    lucide.createIcons();
+    
+    // Auto-update max when customer changes
+    document.querySelector('select[name="customer_id"]').addEventListener('change', function() {
+        const customerId = this.value;
+        if (customerId) {
+            // You could fetch customer debt here and update max, but for now we'll keep it simple
+        }
+    });
+</script>
+{% endblock %}
+
+
+
+
+

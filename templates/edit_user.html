@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Edit User - Pharmacy Thabet{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i data-lucide="edit" class="icon-info"></i>
+        Edit User: {{ user.username }}
+    </h1>
+</div>
+
+<div class="card card-info">
+    <form method="POST">
+        <div class="form-group">
+            <label class="form-label">
+                <i data-lucide="user" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"></i>
+                Username
+            </label>
+            <input type="text" class="form-control" value="{{ user.username }}" disabled>
+            <small style="color: #64748b;">Username cannot be changed</small>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">
+                <i data-lucide="badge" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"></i>
+                Full Name *
+            </label>
+            <input type="text" name="full_name" class="form-control" required value="{{ user.full_name }}">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">
+                <i data-lucide="shield" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"></i>
+                Role *
+            </label>
+            <select name="role" class="form-control" required>
+                <option value="clerk" {% if user.role == 'clerk' %}selected{% endif %}>Clerk - Basic operations</option>
+                <option value="manager" {% if user.role == 'manager' %}selected{% endif %}>Manager - Can void/write-off</option>
+                <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin - Full access</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">
+                <i data-lucide="toggle-right" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"></i>
+                Status
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                <input type="checkbox" name="is_active" value="1" {% if user.is_active %}checked{% endif %}>
+                Active
+            </label>
+        </div>
+
+        <hr style="margin: 1.5rem 0; border-color: #e2e8f0;">
+
+        <div class="form-group">
+            <label class="form-label">
+                <i data-lucide="lock" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"></i>
+                New Password (leave blank to keep current)
+            </label>
+            <input type="password" name="new_password" class="form-control" placeholder="Enter new password">
+        </div>
+
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="save"></i>
+                Save Changes
+            </button>
+            <a href="{{ url_for('users') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

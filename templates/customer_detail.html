@@ -1,0 +1,1254 @@
+{% extends "base.html" %}
+
+{% block title %}{{ customer.name }} - Pharmacy Thabet{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div style="display: flex; align-items: center; gap: 1rem;">
+        {% if customer.profile_image %}
+        <img src="{{ url_for('static', filename='uploads/' + customer.profile_image) }}" alt="{{ customer.name }}" style="width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 3px solid #e2e8f0;">
+        {% endif %}
+        <div>
+            <h1 class="page-title">
+                <i data-lucide="user" class="icon-info"></i>
+                {{ customer.name }}
+            </h1>
+            {% if customer.phone %}
+            <p style="color: #64748b; margin-top: 0.25rem;">
+                <i data-lucide="phone" style="width: 16px; height: 16px; vertical-align: middle;"></i>
+                {{ customer.phone }}
+            </p>
+            {% endif %}
+        </div>
+    </div>
+    <div class="btn-group">
+        <a href="{{ url_for('edit_customer', customer_id=customer.id) }}" class="btn btn-secondary">
+            <i data-lucide="edit"></i>
+            Edit
+        </a>
+        <a href="{{ url_for('export_customer_pdf', customer_id=customer.id) }}" class="btn btn-secondary">
+            <i data-lucide="download"></i>
+            Download PDF
+        </a>
+    </div>
+</div>
+
+<!-- Current Balance - Big and Clear -->
+<div class="balance-cards" style="margin-bottom: 2rem;">
+    <div class="balance-card {% if total_debt > 0 %}has-debt{% else %}no-debt{% endif %}">
+        <div class="balance-label">
+            {% if total_debt > 0 %}
+            <i data-lucide="alert-circle" style="width: 18px; height: 18px; vertical-align: middle;"></i>
+            Owes You
+            {% else %}
+            <i data-lucide="check-circle" style="width: 18px; height: 18px; vertical-align: middle;"></i>
+            All Paid
+            {% endif %}
+        </div>
+        <div class="balance-value">${{ "%.2f"|format(display_debt) }}</div>
+        {% if total_original > 0 %}
+        <div class="balance-subtext">(was ${{ "%.2f"|format(total_original) }})</div>
+        {% endif %}
+    </div>
+    <div class="balance-card paid-card">
+        <div class="balance-label">
+            <i data-lucide="banknote" style="width: 18px; height: 18px; vertical-align: middle;"></i>
+            Total Paid
+        </div>
+        <div class="balance-value">${{ "%.2f"|format(total_paid) }}</div>
+    </div>
+</div>
+
+<!-- Action Buttons -->
+<div class="quick-actions" style="margin-bottom: 2rem;">
+    <button class="btn btn-debt" onclick="openModal('addDebtModal')">
+        <i data-lucide="plus-circle"></i>
+        Add Debt
+    </button>
+    <button class="btn btn-success" onclick="openModal('addPaymentModal')">
+        <i data-lucide="banknote"></i>
+        Record Payment
+    </button>
+    {% if total_debt > 0 %}
+    <form method="POST" action="{{ url_for('mark_paid', customer_id=customer.id) }}" style="display: inline;">
+        <button type="submit" class="btn btn-success" style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);" onclick="return confirmMarkPaid({{ total_debt }})">
+            <i data-lucide="check-circle-2"></i>
+            Mark All Paid
+        </button>
+    </form>
+    {% endif %}
+</div>
+
+<!-- History - Simple and Clear -->
+<div class="card card-info">
+    <div class="card-header">
+        <h2 class="card-title">
+            <i data-lucide="history"></i>
+            History
+        </h2>
+    </div>
+
+    <!-- Filter Toolbar -->
+    <div class="history-filters">
+        <div class="filter-group">
+            <label class="filter-label">
+                <i data-lucide="calendar" style="width: 14px; height: 14px;"></i>
+                Date Range
+            </label>
+            <select id="dateRangeFilter" class="filter-select" onchange="filterHistory()">
+                <option value="all">All Time</option>
+                <option value="7">Last 7 Days</option>
+                <option value="30" selected>Last 30 Days</option>
+                <option value="90">Last 90 Days</option>
+                <option value="custom">Custom Range</option>
+            </select>
+        </div>
+        <div class="filter-group filter-dates filter-hidden" id="customDateRange">
+            <input type="date" id="dateFrom" class="filter-date" onchange="filterHistory()">
+            <span style="color: #64748b;">to</span>
+            <input type="date" id="dateTo" class="filter-date" onchange="filterHistory()">
+        </div>
+        <div class="filter-group">
+            <div class="filter-btn-group" id="typeFilterBtns">
+                <button type="button" class="filter-btn active" data-value="debt" onclick="setTypeFilter('debt')">
+                    <i data-lucide="receipt" style="width: 14px; height: 14px;"></i>
+                    Debts
+                </button>
+                <button type="button" class="filter-btn" data-value="payment" onclick="setTypeFilter('payment')">
+                    <i data-lucide="banknote" style="width: 14px; height: 14px;"></i>
+                    Payments
+                </button>
+                <button type="button" class="filter-btn" data-value="all" onclick="setTypeFilter('all')">
+                    All
+                </button>
+            </div>
+        </div>
+        <div class="filter-group">
+            <label class="filter-label">
+                <i data-lucide="arrow-up-down" style="width: 14px; height: 14px;"></i>
+                Sort By
+            </label>
+            <select id="sortByFilter" class="filter-select" onchange="applySorting()">
+                <option value="date-desc">Date (Newest First)</option>
+                <option value="date-asc">Date (Oldest First)</option>
+                <option value="time-desc">Time (Latest First)</option>
+                <option value="time-asc">Time (Earliest First)</option>
+                <option value="amount-desc">Amount (Highest First)</option>
+                <option value="amount-asc">Amount (Lowest First)</option>
+            </select>
+        </div>
+        <div class="filter-summary" id="filterSummary">
+            Showing all entries
+        </div>
+    </div>
+
+    {% if ledger %}
+    <div class="table-container">
+        <table class="history-table">
+            <thead>
+                <tr>
+                    <th style="width: 150px;">Date & Time</th>
+                    <th style="width: 90px;">Type</th>
+                    <th>Items</th>
+                    <th style="text-align: right; width: 120px;">Amount</th>
+                    <th style="width: 50px;"></th>
+                </tr>
+            </thead>
+            <tbody id="historyTableBody">
+                {% for entry in ledger|reverse %}
+                <tr class="history-row-data" 
+                    data-date="{{ entry.created_at[:10] if entry.created_at and (entry.created_at|length) >= 10 else '' }}" 
+                    data-datetime="{{ entry.created_at if entry.created_at else '' }}"
+                    data-time="{% if entry.created_at and (entry.created_at|length) > 10 %}{% if 'T' in entry.created_at %}{{ entry.created_at[11:19] }}{% elif ' ' in entry.created_at %}{{ entry.created_at[11:19] }}{% else %}00:00:00{% endif %}{% else %}00:00:00{% endif %}"
+                    data-amount="{{ entry.amount if entry.amount else 0 }}"
+                    data-type="{{ 'debt' if entry.entry_type == 'NEW_DEBT' else 'payment' }}">
+                    <td class="date-cell" style="white-space: nowrap;">
+                        {% if entry.created_at %}
+                        {% set datetime_str = entry.created_at %}
+                        {% set date_part = datetime_str[:10] if (datetime_str|length) >= 10 else datetime_str %}
+                        {% set time_part_24 = '' %}
+                        {% if (datetime_str|length) > 10 %}
+                            {% if 'T' in datetime_str %}
+                                {% set time_part_24 = datetime_str[11:19] %}
+                            {% elif ' ' in datetime_str %}
+                                {% set time_part_24 = datetime_str[11:19] %}
+                            {% endif %}
+                        {% endif %}
+                        <div style="display: flex; flex-direction: column; gap: 0.15rem;">
+                            <span style="font-weight: 500;">{{ date_part }}</span>
+                            {% if time_part_24 %}
+                            <span class="time-12h" data-time-24="{{ time_part_24 }}" style="font-size: 0.75rem; color: #64748b;"></span>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <span>-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if entry.entry_type == 'NEW_DEBT' %}
+                        <span class="type-badge type-debt" {% if entry.is_voided %}style="opacity: 0.6;"{% endif %}>
+                            <i data-lucide="receipt" style="width: 12px; height: 12px;"></i>
+                            Debt{% if entry.is_voided %} <span style="font-size: 0.7rem; color: #94a3b8;">(Hidden)</span>{% endif %}
+                        </span>
+                        {% else %}
+                        <span class="type-badge type-payment" {% if entry.is_voided %}style="opacity: 0.6;"{% endif %}>
+                            <i data-lucide="banknote" style="width: 12px; height: 12px;"></i>
+                            Payment{% if entry.is_voided %} <span style="font-size: 0.7rem; color: #94a3b8;">(Hidden)</span>{% endif %}
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td class="description-cell">
+                        {% set items_list = entry.get('items', []) %}
+                        {% if entry.entry_type == 'NEW_DEBT' and items_list|length > 0 %}
+                        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                            <span style="flex: 1; min-width: 0;">
+                                {% for item in items_list %}
+                                    {{ item.product_name }}{% if item.quantity > 1 %} (x{{ item.quantity }}){% endif %}{% if not loop.last %}, {% endif %}
+                                {% endfor %}
+                            </span>
+                            <button type="button" class="btn-view-items" 
+                                    data-items='{{ items_list|tojson|safe }}'
+                                    data-customer-name="{{ entry.customer_name if entry.customer_name else customer.name }}"
+                                    data-date="{{ entry.created_at[:10] if entry.created_at else '' }}"
+                                    data-ledger-id="{{ entry.id }}"
+                                    data-entry-type="{{ entry.entry_type }}"
+                                    data-notes='{{ (entry.description or entry.notes or "")|tojson|safe }}'
+                                    onclick="showItemsFromButton(this)"
+                                    style="padding: 0.25rem 0.5rem; font-size: 0.75rem; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; border-radius: 6px; cursor: pointer; flex-shrink: 0;">
+                                <i data-lucide="package" style="width: 12px; height: 12px;"></i>
+                                View Details
+                            </button>
+                        </div>
+                        {% else %}
+                        {{ entry.description or entry.notes or '-' }}
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;">
+                        {% if entry.entry_type == 'NEW_DEBT' %}
+                        <span class="amount-badge amount-debt">+${{ "%.2f"|format(entry.amount) }}</span>
+                        {% else %}
+                        <span class="amount-badge amount-payment">-${{ "%.2f"|format(entry.amount|abs) }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            {% if entry.is_voided %}
+                            <form method="POST" action="{{ url_for('unvoid_entry', ledger_id=entry.id) }}" style="display: inline;">
+                                <input type="hidden" name="customer_id" value="{{ customer.id }}">
+                                <button type="submit" class="btn-icon-toggle" title="Show entry (currently hidden)" style="background: #e2e8f0; color: #64748b;">
+                                    <i data-lucide="eye-off" style="width: 14px; height: 14px;"></i>
+                                </button>
+                            </form>
+                            {% else %}
+                            <form method="POST" action="{{ url_for('void_entry', ledger_id=entry.id) }}" style="display: inline;">
+                                <input type="hidden" name="customer_id" value="{{ customer.id }}">
+                                <button type="submit" class="btn-icon-toggle" title="Hide entry" style="background: transparent; color: #64748b;">
+                                    <i data-lucide="eye" style="width: 14px; height: 14px;"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                            <form method="POST" action="{{ url_for('delete_entry', ledger_id=entry.id) }}" style="display: inline;" 
+                                  onsubmit="return confirmDeleteEntry(this, '{{ entry.entry_type }}', {{ entry.amount }}, '{{ (entry.description or entry.notes or '')|replace("'", "\\'") }}');">
+                                <input type="hidden" name="customer_id" value="{{ customer.id }}">
+                                <button type="submit" class="btn-icon-delete" title="Delete permanently">
+                                    <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="empty-state filter-hidden" id="noResultsMessage">
+        <i data-lucide="search-x" style="width: 48px; height: 48px; opacity: 0.3;"></i>
+        <p>No entries match your filters.</p>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i data-lucide="inbox" style="width: 48px; height: 48px; opacity: 0.3;"></i>
+        <p>No history yet.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add Debt Modal -->
+<div class="modal-overlay" id="addDebtModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 class="modal-title debt">
+                <i data-lucide="plus-circle"></i>
+                Add Debt
+            </h3>
+            <button class="modal-close" onclick="closeModal('addDebtModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+
+        <form method="POST" action="{{ url_for('add_debt', customer_id=customer.id) }}" onsubmit="return validateDebtForm()">
+            <div class="form-group">
+                <label class="form-label">Items</label>
+                <div class="items-list" id="itemsContainer">
+                    <!-- Items will be added here by JavaScript -->
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="addItem()">
+                    <i data-lucide="plus"></i>
+                    Add Item
+                </button>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Notes (optional)</label>
+                <input type="text" name="notes" class="form-control" placeholder="Any notes">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Date (optional)</label>
+                <input type="date" name="debt_date" class="form-control" placeholder="Leave empty for today">
+                <span style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem; display: block;">Leave empty to use today's date</span>
+            </div>
+
+            <div class="btn-group">
+                <button type="submit" class="btn btn-debt">
+                    <i data-lucide="check"></i>
+                    Add Debt
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('addDebtModal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Add Payment Modal -->
+<div class="modal-overlay" id="addPaymentModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 class="modal-title payment">
+                <i data-lucide="banknote"></i>
+                Record Payment
+            </h3>
+            <button class="modal-close" onclick="closeModal('addPaymentModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+
+        <form method="POST" action="{{ url_for('add_payment', customer_id=customer.id) }}">
+            <div class="form-group">
+                <label class="form-label">Amount *</label>
+                <input type="number" name="amount" class="form-control" required step="0.01" min="0.01" placeholder="How much did they pay?">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Notes (optional)</label>
+                <input type="text" name="notes" class="form-control" placeholder="Any notes">
+            </div>
+
+            <div class="btn-group">
+                <button type="submit" class="btn btn-success">
+                    <i data-lucide="check"></i>
+                    Record Payment
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('addPaymentModal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Items Details Modal -->
+<div class="modal-overlay" id="itemsDetailsModal">
+    <div class="modal" style="max-width: 700px;">
+        <div class="modal-header">
+            <h3 class="modal-title debt">
+                <i data-lucide="package"></i>
+                Items Purchased
+            </h3>
+            <button class="modal-close" onclick="closeModal('itemsDetailsModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+
+        <div style="margin-bottom: 1rem; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+            <p style="color: #475569; font-size: 0.9rem; margin: 0.25rem 0;">
+                <strong>Customer:</strong> <span id="itemsModalCustomerName"></span>
+            </p>
+            <p style="color: #475569; font-size: 0.9rem; margin: 0.25rem 0;">
+                <strong>Date:</strong> <span id="itemsModalDate"></span>
+            </p>
+        </div>
+
+        <form id="itemsEditForm" method="POST">
+            <input type="hidden" id="itemsModalLedgerId" name="ledger_id">
+            <input type="hidden" id="itemsModalEntryType" name="entry_type">
+            <input type="hidden" name="customer_id" value="{{ customer.id }}">
+            
+            <div class="table-container">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                            <th style="padding: 0.75rem; text-align: left; font-weight: 600; color: #475569; font-size: 0.85rem;">Product</th>
+                            <th style="padding: 0.75rem; text-align: center; font-weight: 600; color: #475569; font-size: 0.85rem;">Quantity</th>
+                            <th style="padding: 0.75rem; text-align: right; font-weight: 600; color: #475569; font-size: 0.85rem;">Unit Price</th>
+                            <th style="padding: 0.75rem; text-align: right; font-weight: 600; color: #475569; font-size: 0.85rem;">Total</th>
+                            <th style="padding: 0.75rem; text-align: center; font-weight: 600; color: #475569; font-size: 0.85rem; width: 50px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsModalBody">
+                        <!-- Items will be inserted here by JavaScript -->
+                    </tbody>
+                    <tfoot>
+                        <tr style="background: #fef2f2; border-top: 2px solid #fecaca;">
+                            <td colspan="3" style="padding: 1rem; text-align: right; font-weight: 700; color: #dc2626;">Grand Total:</td>
+                            <td id="itemsModalGrandTotal" style="padding: 1rem; text-align: right; font-weight: 700; color: #dc2626; font-size: 1.1rem;"></td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div style="margin-top: 1rem; margin-bottom: 1rem;">
+                <button type="button" class="btn btn-secondary btn-sm" id="addItemBtn" onclick="addItemToModal()" style="display: none;">
+                    <i data-lucide="plus"></i>
+                    Add Item
+                </button>
+            </div>
+
+            <div class="form-group" id="notesGroup" style="display: none; margin-top: 1rem;">
+                <label class="form-label">Notes (optional)</label>
+                <input type="text" name="notes" id="itemsModalNotes" class="form-control" placeholder="Any notes">
+            </div>
+
+            <div style="margin-top: 1.5rem; display: flex; gap: 0.5rem;">
+                <button type="button" class="btn btn-secondary" id="closeItemsBtn" onclick="closeModal('itemsDetailsModal')">Close</button>
+                <button type="button" class="btn btn-primary" id="editItemsBtn" onclick="toggleEditMode()">
+                    <i data-lucide="edit-2"></i>
+                    Edit
+                </button>
+                <button type="submit" class="btn btn-success" id="saveItemsBtn" style="display: none;">
+                    <i data-lucide="check"></i>
+                    Save Changes
+                </button>
+                <button type="button" class="btn btn-secondary" id="cancelEditBtn" onclick="cancelEditMode()" style="display: none;">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Entry Modal -->
+<div class="modal-overlay" id="editEntryModal">
+    <div class="modal" style="max-width: 700px;">
+        <div class="modal-header">
+            <h3 class="modal-title" id="editEntryModalTitle">
+                <i data-lucide="edit-2"></i>
+                Edit Entry
+            </h3>
+            <button class="modal-close" onclick="closeModal('editEntryModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+
+        <form id="editEntryForm" method="POST">
+            <input type="hidden" name="customer_id" value="{{ customer.id }}">
+            <input type="hidden" id="editEntryId" name="ledger_id">
+            <input type="hidden" id="editEntryType" name="entry_type">
+
+            <!-- Debt Entry Edit Form -->
+            <div id="editDebtForm" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label">Items</label>
+                    <div class="items-list" id="editItemsContainer">
+                        <!-- Items will be added here by JavaScript -->
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="addEditItem()">
+                        <i data-lucide="plus"></i>
+                        Add Item
+                    </button>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Notes (optional)</label>
+                    <input type="text" name="notes" id="editDebtNotes" class="form-control" placeholder="Any notes">
+                </div>
+            </div>
+
+            <!-- Payment Entry Edit Form -->
+            <div id="editPaymentForm" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label">Amount *</label>
+                    <input type="number" name="amount" id="editPaymentAmount" class="form-control" required step="0.01" min="0.01" placeholder="Payment amount">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Notes (optional)</label>
+                    <input type="text" name="notes" id="editPaymentNotes" class="form-control" placeholder="Any notes">
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button type="submit" class="btn btn-success">
+                    <i data-lucide="check"></i>
+                    Save Changes
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('editEntryModal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Entry Modal -->
+<div class="modal-overlay" id="editEntryModal">
+    <div class="modal" style="max-width: 700px;">
+        <div class="modal-header">
+            <h3 class="modal-title" id="editEntryModalTitle">
+                <i data-lucide="edit-2"></i>
+                Edit Entry
+            </h3>
+            <button class="modal-close" onclick="closeModal('editEntryModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+
+        <form id="editEntryForm" method="POST">
+            <input type="hidden" name="customer_id" value="{{ customer.id }}">
+            <input type="hidden" id="editEntryId" name="ledger_id">
+            <input type="hidden" id="editEntryType" name="entry_type">
+
+            <!-- Debt Entry Edit Form -->
+            <div id="editDebtForm" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label">Items</label>
+                    <div class="items-list" id="editItemsContainer">
+                        <!-- Items will be added here by JavaScript -->
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="addEditItem()">
+                        <i data-lucide="plus"></i>
+                        Add Item
+                    </button>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Notes (optional)</label>
+                    <input type="text" name="notes" id="editDebtNotes" class="form-control" placeholder="Any notes">
+                </div>
+            </div>
+
+            <!-- Payment Entry Edit Form -->
+            <div id="editPaymentForm" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label">Amount *</label>
+                    <input type="number" name="amount" id="editPaymentAmount" class="form-control" required step="0.01" min="0.01" placeholder="Payment amount">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Notes (optional)</label>
+                    <input type="text" name="notes" id="editPaymentNotes" class="form-control" placeholder="Any notes">
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button type="submit" class="btn btn-success">
+                    <i data-lucide="check"></i>
+                    Save Changes
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('editEntryModal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Pass products data to JavaScript
+    window.productsData = {{ products | tojson }};
+
+    // Current type filter value (default to 'debt')
+    let currentTypeFilter = 'debt';
+    let currentSortBy = 'date-desc'; // Default sort
+
+    // Convert 24-hour time to 12-hour format
+    function formatTime12h(time24) {
+        if (!time24 || time24 === '00:00:00') return '';
+        const parts = time24.split(':');
+        if (parts.length < 2) return time24;
+        const hour24 = parseInt(parts[0]);
+        const minutes = parts[1];
+        const seconds = parts[2] || '';
+        const hour12 = hour24 === 0 ? 12 : (hour24 > 12 ? hour24 - 12 : hour24);
+        const ampm = hour24 >= 12 ? 'PM' : 'AM';
+        const sec = seconds ? ':' + seconds : '';
+        return `${hour12}:${minutes}${sec} ${ampm}`;
+    }
+
+    // Initialize first item and icons
+    document.addEventListener('DOMContentLoaded', function() {
+        addItem();
+        lucide.createIcons();
+        
+        // Convert all 24-hour times to 12-hour format
+        document.querySelectorAll('.time-12h').forEach(el => {
+            const time24 = el.getAttribute('data-time-24');
+            if (time24) {
+                el.textContent = formatTime12h(time24);
+            }
+        });
+        
+        filterHistory(); // Apply initial filter
+    });
+
+    // Apply sorting
+    function applySorting() {
+        currentSortBy = document.getElementById('sortByFilter').value;
+        filterHistory();
+    }
+
+    // Set type filter from button click
+    function setTypeFilter(value) {
+        currentTypeFilter = value;
+
+        // Update button states
+        const buttons = document.querySelectorAll('.filter-btn');
+        buttons.forEach(btn => {
+            if (btn.dataset.value === value) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        filterHistory();
+    }
+
+    // History filtering functions
+    function filterHistory() {
+        const dateRange = document.getElementById('dateRangeFilter').value;
+        const typeFilter = currentTypeFilter;
+        const customDateDiv = document.getElementById('customDateRange');
+        const rows = document.querySelectorAll('.history-row-data');
+        const noResultsMsg = document.getElementById('noResultsMessage');
+        const tableContainer = document.querySelector('.history-table')?.closest('.table-container');
+
+        // Show/hide custom date range inputs
+        if (dateRange === 'custom') {
+            customDateDiv.classList.remove('filter-hidden');
+        } else {
+            customDateDiv.classList.add('filter-hidden');
+        }
+
+        // Calculate date boundaries
+        let fromDate = null;
+        let toDate = new Date();
+        toDate.setHours(23, 59, 59, 999);
+
+        if (dateRange === 'custom') {
+            const fromInput = document.getElementById('dateFrom').value;
+            const toInput = document.getElementById('dateTo').value;
+            if (fromInput) fromDate = new Date(fromInput);
+            if (toInput) {
+                toDate = new Date(toInput);
+                toDate.setHours(23, 59, 59, 999);
+            }
+        } else if (dateRange !== 'all') {
+            fromDate = new Date();
+            fromDate.setDate(fromDate.getDate() - parseInt(dateRange));
+            fromDate.setHours(0, 0, 0, 0);
+        }
+
+        let visibleCount = 0;
+        let totalCount = rows.length;
+
+        rows.forEach(row => {
+            const rowDate = row.dataset.date ? new Date(row.dataset.date) : null;
+            const rowType = row.dataset.type;
+
+            let showByDate = true;
+            let showByType = true;
+
+            // Date filtering
+            if (fromDate && rowDate) {
+                showByDate = rowDate >= fromDate && rowDate <= toDate;
+            }
+
+            // Type filtering
+            if (typeFilter !== 'all') {
+                showByType = rowType === typeFilter;
+            }
+
+            if (showByDate && showByType) {
+                row.classList.remove('filter-hidden');
+                visibleCount++;
+            } else {
+                row.classList.add('filter-hidden');
+            }
+        });
+
+        // Apply sorting to visible rows
+        const tbody = document.getElementById('historyTableBody');
+        const visibleRows = Array.from(rows).filter(row => !row.classList.contains('filter-hidden'));
+        
+        visibleRows.sort((a, b) => {
+            const [sortType, sortOrder] = currentSortBy.split('-');
+            let comparison = 0;
+            
+            if (sortType === 'date') {
+                // Sort by full datetime for accurate date sorting
+                const datetimeA = a.dataset.datetime ? new Date(a.dataset.datetime) : new Date(0);
+                const datetimeB = b.dataset.datetime ? new Date(b.dataset.datetime) : new Date(0);
+                comparison = datetimeA - datetimeB;
+            } else if (sortType === 'time') {
+                // Sort by time only (HH:MM:SS format)
+                const timeA = a.dataset.time || '00:00:00';
+                const timeB = b.dataset.time || '00:00:00';
+                // Compare time strings directly (HH:MM:SS format works with localeCompare)
+                comparison = timeA.localeCompare(timeB);
+            } else if (sortType === 'amount') {
+                // Sort by absolute amount value
+                const amountA = Math.abs(parseFloat(a.dataset.amount) || 0);
+                const amountB = Math.abs(parseFloat(b.dataset.amount) || 0);
+                comparison = amountA - amountB;
+            }
+            
+            // Reverse if descending
+            return sortOrder === 'desc' ? -comparison : comparison;
+        });
+        
+        // Reorder rows in DOM
+        visibleRows.forEach(row => {
+            tbody.appendChild(row);
+        });
+
+        // Update summary
+        const summary = document.getElementById('filterSummary');
+        if (typeFilter === 'all' && visibleCount === totalCount) {
+            summary.textContent = `Showing all ${totalCount} entries`;
+        } else {
+            summary.textContent = `Showing ${visibleCount} of ${totalCount} entries`;
+        }
+
+        // Show/hide no results message
+        if (noResultsMsg && tableContainer) {
+            if (visibleCount === 0) {
+                tableContainer.classList.add('filter-hidden');
+                noResultsMsg.classList.remove('filter-hidden');
+            } else {
+                tableContainer.classList.remove('filter-hidden');
+                noResultsMsg.classList.add('filter-hidden');
+            }
+        }
+    }
+
+    let isEditMode = false;
+    let originalItems = [];
+    let currentLedgerId = null;
+    let currentEntryType = null;
+
+
+    // Confirm delete entry (permanent)
+    function confirmDeleteEntry(form, entryType, amount, description) {
+        const entryTypeText = entryType === 'NEW_DEBT' ? 'Debt' : 'Payment';
+        const amountText = entryType === 'NEW_DEBT' ? `+$${Math.abs(parseFloat(amount)).toFixed(2)}` : `-$${Math.abs(parseFloat(amount)).toFixed(2)}`;
+        const descText = description && description.trim() ? `\nDescription: ${description}` : '';
+        
+        const message = `⚠️ WARNING: This will PERMANENTLY delete this ${entryTypeText.toLowerCase()} entry!\n\n` +
+                       `Amount: ${amountText}${descText}\n\n` +
+                       `This entry will be completely removed from the system.\n` +
+                       `Note: The balance will NOT be recalculated - it will stay as is.\n` +
+                       `This action CANNOT be undone.\n\n` +
+                       `Are you absolutely sure?`;
+        
+        return confirm(message);
+    }
+
+    // Confirm mark all paid
+    function confirmMarkPaid(balance) {
+        const amountText = `$${Math.abs(parseFloat(balance)).toFixed(2)}`;
+        const message = `Mark this customer as fully paid?\n\n` +
+                        `A payment of ${amountText} will be recorded automatically.\n` +
+                        `This will bring their balance to $0.00.`;
+        return confirm(message);
+    }
+
+    // Show items from button data attributes
+    function showItemsFromButton(button) {
+        try {
+            const itemsJson = button.getAttribute('data-items');
+            const customerName = button.getAttribute('data-customer-name');
+            const date = button.getAttribute('data-date');
+            const ledgerId = button.getAttribute('data-ledger-id');
+            const entryType = button.getAttribute('data-entry-type');
+            const notes = button.getAttribute('data-notes');
+            
+            let items = [];
+            let notesValue = '';
+            
+            try {
+                items = JSON.parse(itemsJson || '[]');
+            } catch (e) {
+                items = [];
+            }
+            
+            try {
+                notesValue = JSON.parse(notes || '""');
+            } catch (e) {
+                notesValue = notes || '';
+            }
+            
+            showItemsDetails(items, customerName, date, ledgerId, entryType, notesValue);
+        } catch (error) {
+            console.error('Error parsing items:', error);
+            alert('Error loading items. Please try again.');
+        }
+    }
+
+    // Show items details modal
+    function showItemsDetails(items, customerName, date, ledgerId, entryType, notes) {
+        document.getElementById('itemsModalCustomerName').textContent = customerName;
+        document.getElementById('itemsModalDate').textContent = date;
+        
+        // Store current entry info
+        currentLedgerId = ledgerId;
+        currentEntryType = entryType;
+        originalItems = JSON.parse(JSON.stringify(items)); // Deep copy
+        
+        // Set form values
+        if (ledgerId) {
+            document.getElementById('itemsModalLedgerId').value = ledgerId;
+            document.getElementById('itemsModalEntryType').value = entryType || '';
+            document.getElementById('itemsModalNotes').value = notes || '';
+        }
+        
+        // Only show edit for debt entries
+        if (entryType === 'NEW_DEBT' && ledgerId) {
+            document.getElementById('editItemsBtn').style.display = 'inline-block';
+            document.getElementById('notesGroup').style.display = 'block';
+        } else {
+            document.getElementById('editItemsBtn').style.display = 'none';
+            document.getElementById('notesGroup').style.display = 'none';
+        }
+        
+        renderItemsTable(items, false);
+        cancelEditMode(); // Reset to view mode
+        
+        openModal('itemsDetailsModal');
+        
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+
+    function renderItemsTable(items, editable) {
+        const tbody = document.getElementById('itemsModalBody');
+        tbody.innerHTML = '';
+        
+        let grandTotal = 0;
+        let itemIndex = 0;
+        
+        items.forEach(item => {
+            const quantity = item.quantity || 1;
+            const price = parseFloat(item.price) || 0;
+            const itemTotal = price * quantity;
+            grandTotal += itemTotal;
+            
+            const row = document.createElement('tr');
+            row.style.borderBottom = '1px solid #f1f5f9';
+            
+            if (editable) {
+                row.innerHTML = `
+                    <td style="padding: 0.75rem;">
+                        <input type="text" name="items[${itemIndex}][product_name]" value="${(item.product_name || '').replace(/"/g, '&quot;')}" 
+                               class="form-control" required 
+                               style="width: 100%; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 4px;"
+                               placeholder="Product name">
+                    </td>
+                    <td style="padding: 0.75rem; text-align: center;">
+                        <input type="number" name="items[${itemIndex}][quantity]" value="${quantity}" min="1" step="1" required 
+                               class="form-control" style="width: 80px; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center;"
+                               onchange="updateItemTotal(this)">
+                    </td>
+                    <td style="padding: 0.75rem; text-align: right;">
+                        <input type="number" name="items[${itemIndex}][price]" value="${price.toFixed(2)}" step="0.01" min="0" required 
+                               class="form-control" style="width: 100px; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 4px; text-align: right;"
+                               onchange="updateItemTotal(this)">
+                    </td>
+                    <td style="padding: 0.75rem; text-align: right; font-weight: 600; color: #1e293b;" class="item-total-cell">$${itemTotal.toFixed(2)}</td>
+                    <td style="padding: 0.75rem; text-align: center;">
+                        <button type="button" class="btn-icon-delete" onclick="removeItemFromModal(this)" style="width: 28px; height: 28px;">
+                            <i data-lucide="x" style="width: 12px; height: 12px;"></i>
+                        </button>
+                    </td>
+                `;
+            } else {
+                row.innerHTML = `
+                    <td style="padding: 0.75rem;">
+                        <strong style="color: #1e293b;">${item.product_name || 'Unknown Product'}</strong>
+                    </td>
+                    <td style="padding: 0.75rem; text-align: center; color: #475569;">${quantity}</td>
+                    <td style="padding: 0.75rem; text-align: right; color: #475569;">$${price.toFixed(2)}</td>
+                    <td style="padding: 0.75rem; text-align: right; font-weight: 600; color: #1e293b;">$${itemTotal.toFixed(2)}</td>
+                    <td></td>
+                `;
+            }
+            
+            tbody.appendChild(row);
+            itemIndex++;
+        });
+        
+        document.getElementById('itemsModalGrandTotal').textContent = '$' + grandTotal.toFixed(2);
+        
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+
+    function toggleEditMode() {
+        isEditMode = true;
+        const items = getCurrentItems();
+        renderItemsTable(items, true);
+        
+        document.getElementById('editItemsBtn').style.display = 'none';
+        document.getElementById('saveItemsBtn').style.display = 'inline-block';
+        document.getElementById('cancelEditBtn').style.display = 'inline-block';
+        document.getElementById('closeItemsBtn').style.display = 'none';
+        document.getElementById('addItemBtn').style.display = 'inline-block';
+    }
+
+    function cancelEditMode() {
+        isEditMode = false;
+        renderItemsTable(originalItems, false);
+        
+        document.getElementById('editItemsBtn').style.display = 'inline-block';
+        document.getElementById('saveItemsBtn').style.display = 'none';
+        document.getElementById('cancelEditBtn').style.display = 'none';
+        document.getElementById('closeItemsBtn').style.display = 'inline-block';
+        document.getElementById('addItemBtn').style.display = 'none';
+    }
+
+    function getCurrentItems() {
+        const rows = document.querySelectorAll('#itemsModalBody tr');
+        const items = [];
+        rows.forEach(row => {
+            const productName = row.querySelector('input[name*="[product_name]"]')?.value?.trim() || 
+                              row.querySelector('strong')?.textContent?.trim() || '';
+            const quantity = parseInt(row.querySelector('input[name*="[quantity]"]')?.value || 
+                             row.querySelector('td:nth-child(2)')?.textContent?.trim()) || 1;
+            const price = parseFloat(row.querySelector('input[name*="[price]"]')?.value || 
+                           row.querySelector('td:nth-child(3)')?.textContent?.replace('$', '').trim()) || 0;
+            
+            if (productName) {
+                items.push({ product_name: productName, quantity: quantity, price: price });
+            }
+        });
+        return items;
+    }
+
+    function updateItemTotal(input) {
+        const row = input.closest('tr');
+        const quantity = parseFloat(row.querySelector('input[name*="[quantity]"]')?.value || 1);
+        const price = parseFloat(row.querySelector('input[name*="[price]"]')?.value || 0);
+        const total = quantity * price;
+        row.querySelector('.item-total-cell').textContent = '$' + total.toFixed(2);
+        updateGrandTotal();
+    }
+
+    function updateGrandTotal() {
+        const rows = document.querySelectorAll('#itemsModalBody tr');
+        let grandTotal = 0;
+        rows.forEach(row => {
+            const totalText = row.querySelector('.item-total-cell')?.textContent || '0';
+            const total = parseFloat(totalText.replace('$', '')) || 0;
+            grandTotal += total;
+        });
+        document.getElementById('itemsModalGrandTotal').textContent = '$' + grandTotal.toFixed(2);
+    }
+
+    function addItemToModal() {
+        const tbody = document.getElementById('itemsModalBody');
+        const itemIndex = tbody.children.length;
+        
+        const row = document.createElement('tr');
+        row.style.borderBottom = '1px solid #f1f5f9';
+        row.innerHTML = `
+            <td style="padding: 0.75rem;">
+                <input type="text" name="items[${itemIndex}][product_name]" value="" 
+                       class="form-control" required 
+                       style="width: 100%; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 4px;"
+                       placeholder="Product name">
+            </td>
+            <td style="padding: 0.75rem; text-align: center;">
+                <input type="number" name="items[${itemIndex}][quantity]" value="1" min="1" step="1" required 
+                       class="form-control" style="width: 80px; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center;"
+                       onchange="updateItemTotal(this)">
+            </td>
+            <td style="padding: 0.75rem; text-align: right;">
+                <input type="number" name="items[${itemIndex}][price]" value="0" step="0.01" min="0" required 
+                       class="form-control" style="width: 100px; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 4px; text-align: right;"
+                       onchange="updateItemTotal(this)">
+            </td>
+            <td style="padding: 0.75rem; text-align: right; font-weight: 600; color: #1e293b;" class="item-total-cell">$0.00</td>
+            <td style="padding: 0.75rem; text-align: center;">
+                <button type="button" class="btn-icon-delete" onclick="removeItemFromModal(this)" style="width: 28px; height: 28px;">
+                    <i data-lucide="x" style="width: 12px; height: 12px;"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+        
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+
+    function removeItemFromModal(button) {
+        button.closest('tr').remove();
+        updateGrandTotal();
+    }
+
+    // Handle form submission
+    document.getElementById('itemsEditForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const items = [];
+        const itemKeys = Array.from(formData.keys()).filter(k => k.startsWith('items['));
+        const itemIndices = [...new Set(itemKeys.map(k => k.match(/\[(\d+)\]/)[1]))].sort((a, b) => a - b);
+        
+        itemIndices.forEach(idx => {
+            const productName = formData.get(`items[${idx}][product_name]`);
+            const quantity = parseInt(formData.get(`items[${idx}][quantity]`)) || 1;
+            const price = parseFloat(formData.get(`items[${idx}][price]`)) || 0;
+            
+            if (productName) {
+                items.push({ product_name: productName, quantity: quantity, price: price });
+            }
+        });
+        
+        if (items.length === 0) {
+            alert('Please add at least one item.');
+            return;
+        }
+        
+        // Create a proper form submission
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/ledger/${currentLedgerId}/edit`;
+        
+        const ledgerIdInput = document.createElement('input');
+        ledgerIdInput.type = 'hidden';
+        ledgerIdInput.name = 'ledger_id';
+        ledgerIdInput.value = currentLedgerId;
+        form.appendChild(ledgerIdInput);
+        
+        const entryTypeInput = document.createElement('input');
+        entryTypeInput.type = 'hidden';
+        entryTypeInput.name = 'entry_type';
+        entryTypeInput.value = currentEntryType;
+        form.appendChild(entryTypeInput);
+        
+        const customerIdInput = document.createElement('input');
+        customerIdInput.type = 'hidden';
+        customerIdInput.name = 'customer_id';
+        customerIdInput.value = '{{ customer.id }}';
+        form.appendChild(customerIdInput);
+        
+        items.forEach((item, idx) => {
+            const productInput = document.createElement('input');
+            productInput.type = 'hidden';
+            productInput.name = `items[${idx}][product_name]`;
+            productInput.value = item.product_name;
+            form.appendChild(productInput);
+            
+            const quantityInput = document.createElement('input');
+            quantityInput.type = 'hidden';
+            quantityInput.name = `items[${idx}][quantity]`;
+            quantityInput.value = item.quantity;
+            form.appendChild(quantityInput);
+            
+            const priceInput = document.createElement('input');
+            priceInput.type = 'hidden';
+            priceInput.name = `items[${idx}][price]`;
+            priceInput.value = item.price;
+            form.appendChild(priceInput);
+        });
+        
+        const notesInput = document.createElement('input');
+        notesInput.type = 'hidden';
+        notesInput.name = 'notes';
+        notesInput.value = document.getElementById('itemsModalNotes').value || '';
+        form.appendChild(notesInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+    });
+
+    // Edit Entry Functions
+    let editItemCounter = 0;
+
+    // Handle edit button click
+    function handleEditClick(button) {
+        try {
+            const ledgerId = parseInt(button.getAttribute('data-entry-id'));
+            const entryType = button.getAttribute('data-entry-type');
+            const amount = parseFloat(button.getAttribute('data-entry-amount')) || 0;
+            
+            // Safely parse JSON from data attributes
+            let notes = '';
+            let items = [];
+            
+            const notesAttr = button.getAttribute('data-entry-notes');
+            const itemsAttr = button.getAttribute('data-entry-items');
+            
+            if (notesAttr) {
+                try {
+                    notes = JSON.parse(notesAttr);
+                } catch (e) {
+                    // If JSON parsing fails, use the raw value
+                    notes = notesAttr;
+                }
+            }
+            
+            if (itemsAttr) {
+                try {
+                    items = JSON.parse(itemsAttr);
+                    if (!Array.isArray(items)) {
+                        items = [];
+                    }
+                } catch (e) {
+                    // If JSON parsing fails, use empty array
+                    items = [];
+                }
+            }
+            
+            if (window.openEditEntryModal) {
+                window.openEditEntryModal(ledgerId, entryType, amount, notes, items);
+            } else {
+                console.error('openEditEntryModal function not found');
+            }
+        } catch (error) {
+            console.error('Error in handleEditClick:', error);
+            alert('Error opening edit form. Please try again.');
+        }
+        return false;
+    }
+
+    // Make function globally accessible
+    window.openEditEntryModal = function(ledgerId, entryType, amount, notes, items) {
+        try {
+            document.getElementById('editEntryId').value = ledgerId;
+            document.getElementById('editEntryType').value = entryType;
+            
+            // Clear previous content
+            document.getElementById('editItemsContainer').innerHTML = '';
+            editItemCounter = 0;
+            
+            if (entryType === 'NEW_DEBT') {
+                document.getElementById('editDebtForm').style.display = 'block';
+                document.getElementById('editPaymentForm').style.display = 'none';
+                document.getElementById('editEntryModalTitle').innerHTML = '<i data-lucide="edit-2"></i> Edit Debt Entry';
+                
+                // Set notes
+                document.getElementById('editDebtNotes').value = notes || '';
+                
+                // Add items
+                if (items && Array.isArray(items) && items.length > 0) {
+                    items.forEach(item => {
+                        addEditItem(item.product_name || '', item.price || 0, item.quantity || 1);
+                    });
+                } else {
+                    addEditItem();
+                }
+            } else {
+                document.getElementById('editDebtForm').style.display = 'none';
+                document.getElementById('editPaymentForm').style.display = 'block';
+                document.getElementById('editEntryModalTitle').innerHTML = '<i data-lucide="edit-2"></i> Edit Payment Entry';
+                
+                // Set amount and notes
+                document.getElementById('editPaymentAmount').value = Math.abs(parseFloat(amount) || 0);
+                document.getElementById('editPaymentNotes').value = notes || '';
+            }
+            
+            // Set form action
+            document.getElementById('editEntryForm').action = `/ledger/${ledgerId}/edit`;
+            
+            if (typeof openModal === 'function') {
+                openModal('editEntryModal');
+            } else {
+                document.getElementById('editEntryModal').classList.add('active');
+            }
+            
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        } catch (error) {
+            console.error('Error opening edit modal:', error);
+            alert('Error opening edit form. Please try again.');
+        }
+    }
+
+    function addEditItem(productName = '', price = '', quantity = 1) {
+        const container = document.getElementById('editItemsContainer');
+        const itemIndex = editItemCounter++;
+        
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'item-row';
+        itemDiv.innerHTML = `
+            <div class="item-row-content">
+                <select name="items[${itemIndex}][product_name]" class="form-control item-product" required onchange="updateEditItemTotal(this)">
+                    <option value="">Select Product</option>
+                    ${window.productsData.map(p => 
+                        `<option value="${p.name}" data-price="${p.price}" ${p.name === productName ? 'selected' : ''}>${p.name} - $${parseFloat(p.price).toFixed(2)}</option>`
+                    ).join('')}
+                </select>
+                <input type="number" name="items[${itemIndex}][quantity]" class="form-control item-quantity" 
+                       value="${quantity}" min="1" step="1" required 
+                       onchange="updateEditItemTotal(this)" placeholder="Qty">
+                <input type="number" name="items[${itemIndex}][price]" class="form-control item-price" 
+                       value="${price}" step="0.01" min="0" required 
+                       onchange="updateEditItemTotal(this)" placeholder="Price">
+                <span class="item-total">$${(parseFloat(price) * parseInt(quantity) || 0).toFixed(2)}</span>
+                <button type="button" class="btn-icon-delete" onclick="removeEditItem(this)">
+                    <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+                </button>
+            </div>
+        `;
+        
+        container.appendChild(itemDiv);
+        
+        // Set price from product if product is selected
+        if (productName) {
+            const select = itemDiv.querySelector('.item-product');
+            const priceInput = itemDiv.querySelector('.item-price');
+            const selectedOption = select.options[select.selectedIndex];
+            if (selectedOption && selectedOption.dataset.price && !price) {
+                priceInput.value = selectedOption.dataset.price;
+                updateEditItemTotal(priceInput);
+            }
+        }
+        
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+
+    function removeEditItem(button) {
+        button.closest('.item-row').remove();
+    }
+
+    function updateEditItemTotal(input) {
+        const row = input.closest('.item-row');
+        const quantity = parseFloat(row.querySelector('.item-quantity').value) || 0;
+        const price = parseFloat(row.querySelector('.item-price').value) || 0;
+        const total = quantity * price;
+        row.querySelector('.item-total').textContent = `$${total.toFixed(2)}`;
+        
+        // Auto-fill price from product if product is selected
+        if (input.classList.contains('item-product')) {
+            const selectedOption = input.options[input.selectedIndex];
+            if (selectedOption && selectedOption.dataset.price) {
+                const priceInput = row.querySelector('.item-price');
+                priceInput.value = selectedOption.dataset.price;
+                updateEditItemTotal(priceInput);
+            }
+        }
+    }
+</script>
+{% endblock %}

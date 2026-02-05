@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Products - Pharmacy Thabet{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i data-lucide="package" class="icon-info"></i>
+        Products
+    </h1>
+    <a href="{{ url_for('add_product') }}" class="btn btn-primary">
+        <i data-lucide="plus"></i>
+        Add Product
+    </a>
+</div>
+
+<div class="card card-info">
+    <div class="card-header">
+        <h2 class="card-title">
+            <i data-lucide="list"></i>
+            Product Catalog
+        </h2>
+        <span class="badge badge-info">
+            {{ products|length }} products
+        </span>
+    </div>
+
+    {% if products %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th><i data-lucide="package" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i> Product Name</th>
+                    <th><i data-lucide="dollar-sign" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i> Price</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in products %}
+                <tr>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <i data-lucide="pill" style="width: 16px; height: 16px; color: #64748b;"></i>
+                            <strong>{{ product.name }}</strong>
+                        </div>
+                    </td>
+                    <td><span class="amount neutral">${{ "%.2f"|format(product.price) }}</span></td>
+                    <td>
+                        <div class="btn-group">
+                            <a href="{{ url_for('edit_product', product_id=product.id) }}" class="btn btn-secondary btn-sm">
+                                <i data-lucide="edit" style="width: 14px; height: 14px;"></i>
+                                Edit
+                            </a>
+                            <form method="POST" action="{{ url_for('delete_product', product_id=product.id) }}" style="display: inline;" onsubmit="return confirmDelete('Delete this product?')">
+                                <button type="submit" class="btn btn-danger btn-sm">
+                                    <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i data-lucide="package" style="width: 48px; height: 48px; opacity: 0.3;"></i>
+        <p>No products yet. Add products to quickly select them when recording debts.</p>
+        <a href="{{ url_for('add_product') }}" class="btn btn-primary" style="margin-top: 1rem;">
+            <i data-lucide="plus"></i>
+            Add Product
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<div class="card" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #bfdbfe;">
+    <p style="color: #1e40af; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem;">
+        <i data-lucide="info" style="width: 18px; height: 18px;"></i>
+        <span><strong>Note:</strong> Products are optional. You can always enter custom product names and prices when adding debt. Adding products here just makes it faster to select common items.</span>
+    </p>
+</div>
+{% endblock %}

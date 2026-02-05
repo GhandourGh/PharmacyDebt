@@ -1,0 +1,433 @@
+<link href="https://cdn.jsdelivr.net/npm/preline@2/dist/preline.min.css" rel="stylesheet">
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Pharmacy Thabet{% endblock %}</title>
+    <script>
+        // Load theme immediately to prevent flash
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark') {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        })();
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .nav-wrapper-new {
+            padding: 1rem 0;
+            position: relative;
+            z-index: 1000;
+        }
+        
+        .nav-link {
+            position: relative;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            color: #94a3b8;
+        }
+        
+        .nav-link:hover {
+            color: white;
+            background: rgba(51, 65, 85, 0.5);
+            transform: translateY(-1px);
+        }
+        
+        .nav-link.active {
+            color: white;
+            background: rgba(51, 65, 85, 0.8);
+            font-size: 1.05rem;
+            font-weight: 600;
+        }
+        
+        .nav-link.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            height: 2px;
+            background: linear-gradient(90deg, #3b82f6, #60a5fa);
+            border-radius: 2px;
+        }
+        
+        .nav-menu-btn {
+            background: rgba(51, 65, 85, 0.5);
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            color: #94a3b8;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            position: relative;
+        }
+        
+        .nav-menu-btn:hover {
+            background: rgba(51, 65, 85, 0.8);
+            color: white;
+            border-color: rgba(148, 163, 184, 0.5);
+            transform: translateY(-1px);
+        }
+        
+        #desktopMenuDropdown {
+            animation: fadeInDown 0.2s ease-out;
+            z-index: 9999;
+            position: absolute;
+        }
+        
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Modern Pill Navbar -->
+    <div class="nav-wrapper-new">
+        <nav class="flex items-center border mx-auto max-w-6xl max-md:w-full max-md:justify-between border-slate-700 px-6 py-4 rounded-full text-white text-sm bg-slate-900/80 backdrop-blur-sm" style="max-width: 1200px; margin-left: auto; margin-right: auto;">
+            <!-- Logo -->
+            <a href="{{ url_for('dashboard') }}" class="flex items-center gap-2 text-white no-underline">
+                <img src="{{ url_for('static', filename='logo.svg') }}" alt="Pharmacy Thabet Logo" width="32" height="32" class="flex-shrink-0">
+                <span class="hidden md:inline font-semibold text-base">Pharmacy Thabet</span>
+            </a>
+
+            <!-- Desktop Nav Links - Centered -->
+            <div class="hidden md:flex flex-1 items-center justify-center gap-2">
+                <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                    Home
+                </a>
+                <a href="{{ url_for('customers') }}" class="nav-link {% if request.endpoint in ['customers', 'customer_detail', 'add_customer', 'edit_customer'] %}active{% endif %}">
+                    Customers
+                </a>
+                <a href="{{ url_for('products') }}" class="nav-link {% if request.endpoint in ['products', 'add_product', 'edit_product'] %}active{% endif %}">
+                    Products
+                </a>
+                <a href="{{ url_for('reports') }}" class="nav-link {% if request.endpoint == 'reports' %}active{% endif %}">
+                    Reports
+                </a>
+                <a href="{{ url_for('analytics') }}" class="nav-link {% if request.endpoint == 'analytics' %}active{% endif %}">
+                    Analytics
+                </a>
+                <a href="{{ url_for('donations') }}" class="nav-link {% if request.endpoint in ['donations', 'add_donation', 'use_donation'] %}active{% endif %}">
+                    Donations
+                </a>
+            </div>
+            
+            <!-- Desktop Menu Button -->
+            <div class="hidden md:flex items-center relative">
+                <button class="nav-menu-btn" onclick="toggleDesktopMenu()">
+                    <i data-lucide="menu" style="width: 18px; height: 18px;"></i>
+                    <span>Menu</span>
+                </button>
+                
+                <!-- Dropdown Menu -->
+                <div id="desktopMenuDropdown" class="hidden absolute right-0 top-full mt-2 bg-slate-900/95 backdrop-blur-sm rounded-xl border border-slate-700 shadow-xl min-w-[220px] py-2" style="z-index: 9999;">
+                    <a href="{{ url_for('add_customer') }}" class="flex items-center gap-3 px-4 py-2.5 text-slate-300 hover:text-white hover:bg-slate-800/50 transition-colors">
+                        <i data-lucide="user-plus" style="width: 18px; height: 18px;"></i>
+                        <span>Add Customer</span>
+                    </a>
+                    <a href="{{ url_for('add_product') }}" class="flex items-center gap-3 px-4 py-2.5 text-slate-300 hover:text-white hover:bg-slate-800/50 transition-colors">
+                        <i data-lucide="package-plus" style="width: 18px; height: 18px;"></i>
+                        <span>Add Product</span>
+                    </a>
+                    <hr class="border-slate-700 my-1">
+                    <a href="{{ url_for('download_all_debts_pdf') }}" class="flex items-center gap-3 px-4 py-2.5 text-red-400 hover:text-red-300 hover:bg-red-950/20 transition-colors">
+                        <i data-lucide="download" style="width: 18px; height: 18px;"></i>
+                        <span>Download Report</span>
+                    </a>
+                    <hr class="border-slate-700 my-1">
+                    <button onclick="toggleTheme()" class="flex items-center gap-3 px-4 py-2.5 w-full text-left text-slate-300 hover:text-white hover:bg-slate-800/50 transition-colors">
+                        <i data-lucide="moon" id="themeIcon" style="width: 18px; height: 18px;"></i>
+                        <span id="themeText">Dark Mode</span>
+                    </button>
+                </div>
+            </div>
+
+
+            <!-- Mobile Menu Toggle -->
+            <button id="menuToggle" class="md:hidden text-slate-400 hover:text-white transition ml-auto">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+            </button>
+        </nav>
+
+        <!-- Mobile Menu -->
+        <div id="mobileMenu" class="hidden md:hidden mt-4 mx-auto bg-slate-900/95 backdrop-blur-sm rounded-2xl border border-slate-700 p-4 flex-col items-center gap-4" style="max-width: 1200px;">
+            <a href="{{ url_for('dashboard') }}" class="text-slate-300 hover:text-white py-2 transition no-underline {% if request.endpoint == 'dashboard' %}text-white{% endif %}">
+                Home
+            </a>
+            <a href="{{ url_for('customers') }}" class="text-slate-300 hover:text-white py-2 transition no-underline {% if request.endpoint in ['customers', 'customer_detail', 'add_customer', 'edit_customer'] %}text-white{% endif %}">
+                Customers
+            </a>
+            <a href="{{ url_for('products') }}" class="text-slate-300 hover:text-white py-2 transition no-underline {% if request.endpoint in ['products', 'add_product', 'edit_product'] %}text-white{% endif %}">
+                Products
+            </a>
+            <a href="{{ url_for('reports') }}" class="text-slate-300 hover:text-white py-2 transition no-underline {% if request.endpoint == 'reports' %}text-white{% endif %}">
+                Reports
+            </a>
+            <a href="{{ url_for('analytics') }}" class="text-slate-300 hover:text-white py-2 transition no-underline {% if request.endpoint == 'analytics' %}text-white{% endif %}">
+                Analytics
+            </a>
+            <a href="{{ url_for('donations') }}" class="text-slate-300 hover:text-white py-2 transition no-underline {% if request.endpoint in ['donations', 'add_donation', 'use_donation'] %}text-white{% endif %}">
+                Donations
+            </a>
+        </div>
+    </div>
+
+    <main class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">
+                    <i data-lucide="{% if category == 'success' %}check-circle{% elif category == 'error' %}alert-circle{% elif category == 'warning' %}alert-triangle{% else %}info{% endif %}" style="width: 18px; height: 18px;"></i>
+                    {{ message }}
+                    <button class="alert-close" onclick="this.parentElement.remove()">
+                        <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+                    </button>
+                </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Confirmation Dialog -->
+    <div class="modal-overlay" id="confirmDialog">
+        <div class="modal" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="confirmDialogTitle">
+                    <i data-lucide="alert-triangle" style="color: #f59e0b;"></i>
+                    <span>Confirm Action</span>
+                </h3>
+                <button class="modal-close" onclick="closeConfirmDialog()">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <p id="confirmDialogMessage" style="color: #475569; margin-bottom: 1.5rem;">Are you sure you want to proceed?</p>
+            <div class="btn-group" style="justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="closeConfirmDialog()">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDialogBtn" onclick="confirmDialogAction()">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // Mobile menu toggle
+        const menuToggle = document.getElementById('menuToggle');
+        const mobileMenu = document.getElementById('mobileMenu');
+
+        menuToggle.addEventListener('click', () => {
+            if (mobileMenu.classList.contains('hidden')) {
+                mobileMenu.classList.remove('hidden');
+                mobileMenu.classList.add('flex');
+            } else {
+                mobileMenu.classList.add('hidden');
+                mobileMenu.classList.remove('flex');
+            }
+        });
+        
+        // Desktop menu toggle
+        window.toggleDesktopMenu = function() {
+            const dropdown = document.getElementById('desktopMenuDropdown');
+            dropdown.classList.toggle('hidden');
+            
+            // Close dropdown when clicking outside
+            if (!dropdown.classList.contains('hidden')) {
+                setTimeout(() => {
+                    document.addEventListener('click', function closeDropdown(e) {
+                        if (!dropdown.contains(e.target) && !e.target.closest('.nav-menu-btn')) {
+                            dropdown.classList.add('hidden');
+                            document.removeEventListener('click', closeDropdown);
+                        }
+                    });
+                }, 10);
+            }
+        };
+        
+        // Theme toggle functionality
+        window.toggleTheme = function() {
+            const html = document.documentElement;
+            const themeIcon = document.getElementById('themeIcon');
+            const themeText = document.getElementById('themeText');
+            
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+                if (themeIcon) {
+                    themeIcon.setAttribute('data-lucide', 'moon');
+                    themeText.textContent = 'Dark Mode';
+                }
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+                if (themeIcon) {
+                    themeIcon.setAttribute('data-lucide', 'sun');
+                    themeText.textContent = 'Light Mode';
+                }
+            }
+            
+            lucide.createIcons();
+        };
+        
+        // Update theme icon and text on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            const html = document.documentElement;
+            const themeIcon = document.getElementById('themeIcon');
+            const themeText = document.getElementById('themeText');
+            
+            // Ensure theme is applied (already applied in head, but ensure consistency)
+            if (savedTheme === 'dark') {
+                html.classList.add('dark');
+                if (themeIcon && themeText) {
+                    themeIcon.setAttribute('data-lucide', 'sun');
+                    themeText.textContent = 'Light Mode';
+                }
+            } else {
+                html.classList.remove('dark');
+                if (themeIcon && themeText) {
+                    themeIcon.setAttribute('data-lucide', 'moon');
+                    themeText.textContent = 'Dark Mode';
+                }
+            }
+            
+            lucide.createIcons();
+        });
+
+        // Toast Notification System
+        window.showToast = function(message, type = 'success', duration = 4000) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+
+            const icons = {
+                success: 'check-circle',
+                error: 'alert-circle',
+                warning: 'alert-triangle',
+                info: 'info'
+            };
+
+            toast.innerHTML = `
+                <i data-lucide="${icons[type] || 'info'}" style="width: 18px; height: 18px;"></i>
+                <span>${message}</span>
+                <button class="toast-close" onclick="this.parentElement.remove()">
+                    <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+                </button>
+            `;
+
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            // Trigger animation
+            setTimeout(() => toast.classList.add('show'), 10);
+
+            // Auto remove
+            if (duration > 0) {
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                    setTimeout(() => toast.remove(), 300);
+                }, duration);
+            }
+        };
+
+        // Confirmation Dialog System
+        let confirmCallback = null;
+
+        window.showConfirmDialog = function(title, message, callback, btnText = 'Confirm', btnClass = 'btn-danger') {
+            const dialog = document.getElementById('confirmDialog');
+            document.getElementById('confirmDialogTitle').innerHTML = `<i data-lucide="alert-triangle" style="color: #f59e0b;"></i><span>${title}</span>`;
+            document.getElementById('confirmDialogMessage').textContent = message;
+            const btn = document.getElementById('confirmDialogBtn');
+            btn.textContent = btnText;
+            btn.className = `btn ${btnClass}`;
+            confirmCallback = callback;
+            dialog.classList.add('active');
+            lucide.createIcons();
+        };
+
+        window.closeConfirmDialog = function() {
+            document.getElementById('confirmDialog').classList.remove('active');
+            confirmCallback = null;
+        };
+
+        window.confirmDialogAction = function() {
+            if (confirmCallback) {
+                confirmCallback();
+            }
+            closeConfirmDialog();
+        };
+
+        // Modal functions
+        window.openModal = function(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.add('active');
+                lucide.createIcons();
+            }
+        };
+
+        window.closeModal = function(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.remove('active');
+            }
+        };
+
+        // Close modal on overlay click
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal-overlay') && e.target.classList.contains('active')) {
+                e.target.classList.remove('active');
+            }
+        });
+
+        // Profile menu toggle
+        window.toggleProfileMenu = function(btn) {
+            const dropdown = btn.nextElementSibling;
+            // Close all other dropdowns
+            document.querySelectorAll('.profile-dropdown.show').forEach(d => {
+                if (d !== dropdown) d.classList.remove('show');
+            });
+            dropdown.classList.toggle('show');
+        };
+
+        // Close dropdowns on outside click
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.profile-card-menu')) {
+                document.querySelectorAll('.profile-dropdown.show').forEach(d => d.classList.remove('show'));
+            }
+        });
+    </script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/preline@2/dist/preline.min.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics - Pharmacy Thabet{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i data-lucide="bar-chart-3" class="icon-info"></i>
+        Analytics
+    </h1>
+</div>
+
+<!-- Summary Stats -->
+<div class="stats-grid">
+    <div class="stat-card total-debt">
+        <div class="stat-header">
+            <div>
+                <div class="stat-label">Total Outstanding</div>
+                <div class="stat-value">${{ "%.2f"|format(total_debt) }}</div>
+            </div>
+            <div class="stat-icon">
+                <i data-lucide="dollar-sign" style="width: 24px; height: 24px;"></i>
+            </div>
+        </div>
+    </div>
+    <div class="stat-card total-paid">
+        <div class="stat-header">
+            <div>
+                <div class="stat-label">Customers with Debt</div>
+                <div class="stat-value">{{ customers_with_debt }}</div>
+            </div>
+            <div class="stat-icon">
+                <i data-lucide="users" style="width: 24px; height: 24px;"></i>
+            </div>
+        </div>
+    </div>
+    <div class="stat-card today-debt">
+        <div class="stat-header">
+            <div>
+                <div class="stat-label">This Week's Debt</div>
+                <div class="stat-value" style="color: #d97706;">${{ "%.2f"|format(weekly_debt) }}</div>
+            </div>
+            <div class="stat-icon">
+                <i data-lucide="trending-up" style="width: 24px; height: 24px;"></i>
+            </div>
+        </div>
+    </div>
+    <div class="stat-card" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);">
+        <div class="stat-header">
+            <div>
+                <div class="stat-label">This Week's Payments</div>
+                <div class="stat-value" style="color: #16a34a;">${{ "%.2f"|format(weekly_payments) }}</div>
+            </div>
+            <div class="stat-icon" style="background: rgba(22, 163, 74, 0.15);">
+                <i data-lucide="banknote" style="width: 24px; height: 24px; color: #16a34a;"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Section -->
+<div class="charts-grid">
+    <div class="chart-card">
+        <div class="chart-header">
+            <h3 class="chart-title">
+                <i data-lucide="trending-up" style="width: 18px; height: 18px; color: #2563eb;"></i>
+                Weekly Overview
+            </h3>
+        </div>
+        <div class="chart-container">
+            <canvas id="weeklyChart"></canvas>
+        </div>
+    </div>
+    <div class="chart-card">
+        <div class="chart-header">
+            <h3 class="chart-title">
+                <i data-lucide="users" style="width: 18px; height: 18px; color: #dc2626;"></i>
+                Top Debtors
+            </h3>
+        </div>
+        <div class="chart-container">
+            <canvas id="topDebtorsChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="charts-grid" style="margin-top: 0;">
+    <div class="chart-card" style="grid-column: span 2;">
+        <div class="chart-header">
+            <h3 class="chart-title">
+                <i data-lucide="bar-chart-3" style="width: 18px; height: 18px; color: #16a34a;"></i>
+                Monthly Trend (Last 6 Months)
+            </h3>
+        </div>
+        <div class="chart-container" style="height: 300px;">
+            <canvas id="monthlyChart"></canvas>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Initialize Charts on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        initAnalyticsCharts();
+    });
+
+    async function initAnalyticsCharts() {
+        try {
+            const response = await fetch('/api/dashboard-stats');
+            const data = await response.json();
+
+            // Weekly Chart
+            const weeklyCtx = document.getElementById('weeklyChart');
+            if (weeklyCtx) {
+                new Chart(weeklyCtx, {
+                    type: 'line',
+                    data: {
+                        labels: data.weekly.map(d => d.day),
+                        datasets: [
+                            {
+                                label: 'Debt Added',
+                                data: data.weekly.map(d => d.debt),
+                                borderColor: '#dc2626',
+                                backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            },
+                            {
+                                label: 'Payments',
+                                data: data.weekly.map(d => d.payments),
+                                borderColor: '#16a34a',
+                                backgroundColor: 'rgba(22, 163, 74, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { usePointStyle: true, padding: 15 }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: value => '$' + value.toLocaleString()
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Top Debtors Chart
+            const debtorsCtx = document.getElementById('topDebtorsChart');
+            if (debtorsCtx && data.top_debtors.length > 0) {
+                new Chart(debtorsCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.top_debtors.map(d => d.name),
+                        datasets: [{
+                            label: 'Outstanding Debt',
+                            data: data.top_debtors.map(d => d.debt),
+                            backgroundColor: [
+                                '#dc2626', '#ef4444', '#f87171', '#fca5a5', '#fecaca',
+                                '#fed7aa', '#fdba74', '#fb923c', '#f97316', '#ea580c'
+                            ],
+                            borderRadius: 6
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: value => '$' + value.toLocaleString()
+                                }
+                            }
+                        }
+                    }
+                });
+            } else if (debtorsCtx) {
+                debtorsCtx.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:0.9rem;">No debtors to display</div>';
+            }
+
+            // Monthly Trend Chart
+            const monthlyCtx = document.getElementById('monthlyChart');
+            if (monthlyCtx) {
+                new Chart(monthlyCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.monthly.map(d => d.month),
+                        datasets: [
+                            {
+                                label: 'Debt Added',
+                                data: data.monthly.map(d => d.debt),
+                                backgroundColor: '#fecaca',
+                                borderColor: '#dc2626',
+                                borderWidth: 2,
+                                borderRadius: 6
+                            },
+                            {
+                                label: 'Payments Collected',
+                                data: data.monthly.map(d => d.payments),
+                                backgroundColor: '#bbf7d0',
+                                borderColor: '#16a34a',
+                                borderWidth: 2,
+                                borderRadius: 6
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { usePointStyle: true, padding: 15 }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: value => '$' + value.toLocaleString()
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Error loading chart data:', error);
+        }
+    }
+</script>
+{% endblock %}

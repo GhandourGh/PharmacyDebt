@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Pharmacy Thabet</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            background-color: #f8fafc;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-grid-wrapper {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 0;
+        }
+        .login-grid-background {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            background-image: linear-gradient(to right, #e2e8f0 1px, transparent 1px),
+                linear-gradient(to bottom, #e2e8f0 1px, transparent 1px);
+            background-size: 20px 30px;
+            -webkit-mask-image: radial-gradient(
+                ellipse 70% 60% at 50% 0%,
+                #000 60%,
+                transparent 100%
+            );
+            mask-image: radial-gradient(
+                ellipse 70% 60% at 50% 0%,
+                #000 60%,
+                transparent 100%
+            );
+        }
+        .login-container {
+            position: relative;
+            z-index: 1;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 3rem;
+            width: 100%;
+            max-width: 400px;
+        }
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .login-header .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+        }
+        .login-header .logo i {
+            color: white;
+            width: 40px;
+            height: 40px;
+        }
+        .login-header h1 {
+            color: #1e3a5f;
+            font-size: 1.75rem;
+            margin-bottom: 0.5rem;
+        }
+        .login-header p {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+        .login-form .form-group {
+            margin-bottom: 1.5rem;
+        }
+        .login-form .form-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            color: #475569;
+            font-weight: 500;
+        }
+        .login-form .form-control {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+        .login-form .form-control:focus {
+            border-color: #2c5282;
+            box-shadow: 0 0 0 3px rgba(44, 82, 130, 0.1);
+            outline: none;
+        }
+        .login-form .btn-login {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+        }
+        .login-form .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(44, 82, 130, 0.4);
+        }
+        .login-footer {
+            text-align: center;
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #e2e8f0;
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-grid-wrapper">
+        <div class="login-grid-background"></div>
+    </div>
+    <div class="login-container">
+        <div class="login-header">
+            <div class="logo">
+                <i data-lucide="pill"></i>
+            </div>
+            <h1>Pharmacy Thabet</h1>
+            <p>Debt Management System</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }}" style="margin-bottom: 1.5rem;">
+                    <i data-lucide="{% if category == 'success' %}check-circle{% elif category == 'error' %}alert-circle{% elif category == 'warning' %}alert-triangle{% else %}info{% endif %}" style="width: 18px; height: 18px;"></i>
+                    {{ message }}
+                </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" class="login-form">
+            <div class="form-group">
+                <label class="form-label">
+                    <i data-lucide="user" style="width: 16px; height: 16px;"></i>
+                    Username
+                </label>
+                <input type="text" name="username" class="form-control" required autofocus placeholder="Enter your username">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">
+                    <i data-lucide="lock" style="width: 16px; height: 16px;"></i>
+                    Password
+                </label>
+                <input type="password" name="password" class="form-control" required placeholder="Enter your password">
+            </div>
+
+            <button type="submit" class="btn-login">
+                <i data-lucide="log-in" style="width: 18px; height: 18px;"></i>
+                Sign In
+            </button>
+        </form>
+
+        <div class="login-footer">
+            <p>Default login: admin / admin123</p>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

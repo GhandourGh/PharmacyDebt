@@ -1,0 +1,928 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Pharmacy Thabet{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i data-lucide="home" class="icon-info"></i>
+        Home
+    </h1>
+    <div class="quick-actions">
+        <a href="{{ url_for('download_all_debts_pdf') }}" class="btn btn-success">
+            <i data-lucide="download"></i>
+            Download Report
+        </a>
+        <a href="{{ url_for('add_customer') }}" class="btn btn-primary">
+            <i data-lucide="user-plus"></i>
+            Add Customer
+        </a>
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="stats-grid">
+    <a href="{{ url_for('analytics') }}" class="stat-card total-debt">
+        <div class="stat-header">
+            <div>
+                <div class="stat-label">Total Owed to You</div>
+                <div class="stat-value">${{ "%.2f"|format(total_debt) }}</div>
+            </div>
+            <div class="stat-icon">
+                <i data-lucide="dollar-sign" style="width: 24px; height: 24px;"></i>
+            </div>
+        </div>
+    </a>
+    <a href="{{ url_for('customers') }}" class="stat-card customers-count" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);">
+        <div class="stat-header">
+            <div>
+                <div class="stat-label">Customers with Debts</div>
+                <div class="stat-value" style="color: #2563eb;">{{ customers_with_debt_count }}</div>
+            </div>
+            <div class="stat-icon">
+                <i data-lucide="users" style="width: 24px; height: 24px;"></i>
+            </div>
+        </div>
+    </a>
+    {% if daily_stats %}
+    <a href="{{ url_for('analytics') }}" class="stat-card total-paid">
+        <div class="stat-header">
+            <div>
+                <div class="stat-label">Today's Payments</div>
+                <div class="stat-value">${{ "%.2f"|format(daily_stats.total_payments or 0) }}</div>
+            </div>
+            <div class="stat-icon">
+                <i data-lucide="banknote" style="width: 24px; height: 24px;"></i>
+            </div>
+        </div>
+    </a>
+    <a href="{{ url_for('analytics') }}" class="stat-card today-debt">
+        <div class="stat-header">
+            <div>
+                <div class="stat-label">Today's Debt Added</div>
+                {% set today_debt = daily_stats.total_debt or 0 %}
+                <div class="stat-value" style="color: #d97706;">${{ "%.2f"|format(today_debt) }}</div>
+            </div>
+            <div class="stat-icon">
+                <i data-lucide="receipt" style="width: 24px; height: 24px;"></i>
+            </div>
+        </div>
+    </a>
+    {% endif %}
+</div>
+
+<!-- All Customers Section -->
+{% if all_customers %}
+{% set recent_customer_ids = recent_customers|map(attribute='id')|list %}
+<div class="section-header">
+    <h2 class="section-title">
+        <i data-lucide="users"></i>
+        All Customers
+    </h2>
+    <button type="button" class="btn btn-secondary btn-sm" id="viewAllCustomersBtn" onclick="toggleViewAllCustomers()">
+        <i data-lucide="arrow-right" id="viewAllIcon"></i>
+        <span id="viewAllText">Show All</span>
+    </button>
+</div>
+<!-- Search -->
+<div class="search-container" style="margin-bottom: 1.5rem;">
+    <span class="search-icon">
+        <i data-lucide="search"></i>
+    </span>
+    <input type="text" id="searchInput" class="search-input" placeholder="Search customers...">
+</div>
+<div class="customer-cards-grid" id="customerCardsGrid">
+    {% for customer in all_customers %}
+    <div class="profile-card {% if customer.debt == 0 %}profile-card-no-debt{% endif %} {% if customer.id not in recent_customer_ids %}customer-card-hidden{% endif %}" data-customer-name="{{ customer.name|lower }}" data-customer-phone="{{ (customer.phone or '')|lower }}">
+        <div class="profile-card-menu">
+            <button class="profile-menu-btn" onclick="toggleProfileMenu(this)">
+                <i data-lucide="more-horizontal" style="width: 20px; height: 20px;"></i>
+            </button>
+            <div class="profile-dropdown">
+                <a href="{{ url_for('customer_detail', customer_id=customer.id) }}" class="dropdown-item">
+                    <i data-lucide="eye" style="width: 14px; height: 14px;"></i>
+                    View
+                </a>
+                <a href="{{ url_for('edit_customer', customer_id=customer.id) }}" class="dropdown-item">
+                    <i data-lucide="edit" style="width: 14px; height: 14px;"></i>
+                    Edit
+                </a>
+                <a href="{{ url_for('export_customer_pdf', customer_id=customer.id) }}" class="dropdown-item">
+                    <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                    Export PDF
+                </a>
+                <form method="POST" action="{{ url_for('delete_customer', customer_id=customer.id) }}" id="deleteForm{{ customer.id }}">
+                    <button type="button" class="dropdown-item dropdown-item-danger" data-customer-id="{{ customer.id }}" data-customer-name="{{ customer.name }}" onclick="confirmDelete(this)">
+                        <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                        Delete
+                    </button>
+                </form>
+            </div>
+        </div>
+        <div class="profile-card-content">
+            <div class="profile-avatar-large {% if customer.debt == 0 %}profile-avatar-gray{% endif %}">
+                {% if customer.profile_image %}
+                <img src="{{ url_for('static', filename='uploads/' + customer.profile_image) }}" alt="{{ customer.name }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                {% else %}
+                {{ customer.name[0].upper() }}
+                {% endif %}
+            </div>
+            <a href="{{ url_for('customer_detail', customer_id=customer.id) }}" style="text-decoration: none;">
+                <h3 class="profile-name {% if customer.debt == 0 %}profile-name-gray{% endif %}">{{ customer.name }}</h3>
+            </a>
+            {% if customer.phone %}
+            <span class="profile-phone {% if customer.debt == 0 %}profile-phone-gray{% endif %}">
+                <i data-lucide="phone" style="width: 14px; height: 14px;"></i>
+                {{ customer.phone }}
+            </span>
+            {% else %}
+            <span class="profile-phone profile-phone-empty {% if customer.debt == 0 %}profile-phone-gray{% endif %}">No phone</span>
+            {% endif %}
+            <div class="profile-debt-badge {% if customer.debt == 0 %}profile-debt-badge-gray{% endif %}">
+                <span class="debt-label">{% if customer.debt == 0 %}Balance{% else %}Owes{% endif %}</span>
+                <span class="debt-amount">${{ "%.2f"|format(customer.display_debt) }}</span>
+            </div>
+            <div class="profile-actions">
+                <button type="button" class="btn btn-debt btn-sm" data-customer-id="{{ customer.id }}" data-customer-name="{{ customer.name }}">
+                    <i data-lucide="plus-circle" style="width: 14px; height: 14px;"></i>
+                    Add Debt
+                </button>
+                <button type="button" class="btn btn-success btn-sm" data-customer-id="{{ customer.id }}" data-customer-name="{{ customer.name }}" data-action="pay">
+                    <i data-lucide="banknote" style="width: 14px; height: 14px;"></i>
+                    Pay
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Recent Activity -->
+<div class="card card-info">
+    <div class="card-header">
+        <h2 class="card-title">
+            <i data-lucide="clock"></i>
+            Recent Activity
+        </h2>
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleRecentActivity()" id="toggleActivityBtn">
+                <i data-lucide="chevron-down" id="toggleActivityIcon" style="width: 14px; height: 14px;"></i>
+                <span id="toggleActivityText">Expand</span>
+            </button>
+            <a href="{{ url_for('reports') }}" class="btn btn-secondary btn-sm">
+                <i data-lucide="file-text"></i>
+                View Reports
+            </a>
+        </div>
+    </div>
+
+    <div id="recentActivityContent" style="display: none;">
+        <!-- Filter Toolbar -->
+        <div class="history-filters">
+            <div class="filter-group">
+                <div class="filter-btn-group" id="recentActivityTypeFilterBtns">
+                    <button type="button" class="filter-btn active" data-value="debt" onclick="setRecentActivityTypeFilter('debt')">
+                        <i data-lucide="receipt" style="width: 14px; height: 14px;"></i>
+                        Debts
+                    </button>
+                    <button type="button" class="filter-btn" data-value="payment" onclick="setRecentActivityTypeFilter('payment')">
+                        <i data-lucide="banknote" style="width: 14px; height: 14px;"></i>
+                        Payments
+                    </button>
+                    <button type="button" class="filter-btn" data-value="all" onclick="setRecentActivityTypeFilter('all')">
+                        All
+                    </button>
+                </div>
+            </div>
+            <div class="filter-summary" id="recentActivityFilterSummary">
+                Showing debts
+            </div>
+        </div>
+
+        {% if recent_activity %}
+        <div class="table-container">
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th style="width: 150px;">Date & Time</th>
+                        <th style="width: 90px;">Type</th>
+                        <th>Customer</th>
+                        <th style="text-align: right; width: 120px;">Amount</th>
+                        <th style="width: 120px;">Items</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody id="recentActivityTableBody">
+                    {% for entry in recent_activity %}
+                    <tr class="recent-activity-row" data-type="{{ 'debt' if entry.entry_type == 'NEW_DEBT' else 'payment' }}">
+                        <td class="date-cell" style="white-space: nowrap;">
+                            {% if entry.created_at %}
+                            {% set datetime_str = entry.created_at %}
+                            {% set date_part = datetime_str[:10] if (datetime_str|length) >= 10 else datetime_str %}
+                            {% set time_part_24 = '' %}
+                            {% if (datetime_str|length) > 10 %}
+                                {% if 'T' in datetime_str %}
+                                    {% set time_part_24 = datetime_str[11:19] %}
+                                {% elif ' ' in datetime_str %}
+                                    {% set time_part_24 = datetime_str[11:19] %}
+                                {% endif %}
+                            {% endif %}
+                            <div style="display: flex; flex-direction: column; gap: 0.15rem;">
+                                <span style="font-weight: 500;">{{ date_part }}</span>
+                                {% if time_part_24 %}
+                                <span class="time-12h" data-time-24="{{ time_part_24 }}" style="font-size: 0.75rem; color: #64748b;"></span>
+                                {% endif %}
+                            </div>
+                            {% else %}
+                            <span>-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if entry.entry_type == 'NEW_DEBT' %}
+                            <span class="type-badge type-debt">
+                                <i data-lucide="receipt" style="width: 12px; height: 12px;"></i>
+                                Debt
+                            </span>
+                            {% else %}
+                            <span class="type-badge type-payment">
+                                <i data-lucide="banknote" style="width: 12px; height: 12px;"></i>
+                                Payment
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('customer_detail', customer_id=entry.customer_id) }}" style="text-decoration: none; color: #2563eb; font-weight: 500;">
+                                {{ entry.customer_name }}
+                            </a>
+                        </td>
+                        <td style="text-align: right;">
+                            {% if entry.entry_type == 'NEW_DEBT' %}
+                            <span class="amount-badge amount-debt">+${{ "%.2f"|format(entry.amount) }}</span>
+                            {% else %}
+                            <span class="amount-badge amount-payment">-${{ "%.2f"|format(entry.amount|abs) }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% set items_list = entry.get('items', []) %}
+                            {% if entry.entry_type == 'NEW_DEBT' and items_list|length > 0 %}
+                            <button type="button" class="btn-view-items-inline" 
+                                    data-items='{{ items_list|tojson }}'
+                                    data-customer-name="{{ entry.customer_name }}"
+                                    data-date="{{ entry.created_at[:10] if entry.created_at else '' }}"
+                                    onclick="showItemsFromButton(this)"
+                                    style="padding: 0.25rem 0.5rem; font-size: 0.75rem; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.25rem;">
+                                <i data-lucide="package" style="width: 12px; height: 12px;"></i>
+                                {{ items_list|length }} item{% if items_list|length > 1 %}s{% endif %}
+                            </button>
+                            {% else %}
+                            <span style="color: #cbd5e1;">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="description-cell">{{ entry.description or entry.notes or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i data-lucide="inbox" style="width: 48px; height: 48px; opacity: 0.3;"></i>
+            <p>No activity yet. Add a customer and record their first debt.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Quick Add Debt Modal -->
+<div class="modal-overlay" id="quickDebtModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 class="modal-title debt">
+                <i data-lucide="plus-circle"></i>
+                Quick Add Debt - <span id="quickDebtCustomerName"></span>
+            </h3>
+            <button class="modal-close" onclick="closeModal('quickDebtModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+
+        <form id="quickDebtForm" method="POST" onsubmit="return window.submitQuickDebtForm(event)">
+            <div class="form-group">
+                <label class="form-label">Items</label>
+                <div class="items-list" id="quickItemsContainer">
+                    <!-- Items will be added here by JavaScript -->
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="window.addQuickItem()">
+                    <i data-lucide="plus"></i>
+                    Add Item
+                </button>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Notes (optional)</label>
+                <input type="text" name="notes" class="form-control" placeholder="Any notes">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Date (optional)</label>
+                <input type="date" name="debt_date" class="form-control" placeholder="Leave empty for today">
+                <span style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem; display: block;">Leave empty to use today's date</span>
+            </div>
+
+            <div class="btn-group">
+                <button type="submit" class="btn btn-debt">
+                    <i data-lucide="check"></i>
+                    Add Debt
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('quickDebtModal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Quick Pay Modal -->
+<div class="modal-overlay" id="quickPayModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 class="modal-title payment">
+                <i data-lucide="banknote"></i>
+                Quick Payment - <span id="quickPayCustomerName"></span>
+            </h3>
+            <button class="modal-close" onclick="closeModal('quickPayModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+
+        <form id="quickPayForm" method="POST" onsubmit="return window.submitQuickPayForm(event)">
+            <input type="hidden" name="payment_method" value="CASH">
+            <div class="form-group">
+                <label class="form-label">Amount *</label>
+                <input type="number" name="amount" class="form-control" required step="0.01" min="0.01" placeholder="How much did they pay?">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Notes (optional)</label>
+                <input type="text" name="notes" class="form-control" placeholder="Any notes">
+            </div>
+
+            <div class="btn-group">
+                <button type="submit" class="btn btn-success">
+                    <i data-lucide="check"></i>
+                    Record Payment
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('quickPayModal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Items Details Modal -->
+<div class="modal-overlay" id="itemsDetailsModal">
+    <div class="modal" style="max-width: 600px;">
+        <div class="modal-header">
+            <h3 class="modal-title debt">
+                <i data-lucide="package"></i>
+                Items Purchased
+            </h3>
+            <button class="modal-close" onclick="closeModal('itemsDetailsModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+
+        <div style="margin-bottom: 1rem; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+            <p style="color: #475569; font-size: 0.9rem; margin: 0.25rem 0;">
+                <strong>Customer:</strong> <span id="itemsModalCustomerName"></span>
+            </p>
+            <p style="color: #475569; font-size: 0.9rem; margin: 0.25rem 0;">
+                <strong>Date:</strong> <span id="itemsModalDate"></span>
+            </p>
+        </div>
+
+        <div class="table-container">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                        <th style="padding: 0.75rem; text-align: left; font-weight: 600; color: #475569; font-size: 0.85rem;">Product</th>
+                        <th style="padding: 0.75rem; text-align: center; font-weight: 600; color: #475569; font-size: 0.85rem;">Quantity</th>
+                        <th style="padding: 0.75rem; text-align: right; font-weight: 600; color: #475569; font-size: 0.85rem;">Unit Price</th>
+                        <th style="padding: 0.75rem; text-align: right; font-weight: 600; color: #475569; font-size: 0.85rem;">Total</th>
+                    </tr>
+                </thead>
+                <tbody id="itemsModalBody">
+                    <!-- Items will be inserted here by JavaScript -->
+                </tbody>
+                <tfoot>
+                    <tr style="background: #fef2f2; border-top: 2px solid #fecaca;">
+                        <td colspan="3" style="padding: 1rem; text-align: right; font-weight: 700; color: #dc2626;">Grand Total:</td>
+                        <td id="itemsModalGrandTotal" style="padding: 1rem; text-align: right; font-weight: 700; color: #dc2626; font-size: 1.1rem;"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div style="margin-top: 1.5rem;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('itemsDetailsModal')">Close</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Pass products data to JavaScript
+    window.productsData = {{ products | tojson }};
+    let quickItemCount = 0;
+    let currentQuickCustomerId = null;
+
+    // Quick Debt Modal - Make sure it's globally accessible
+    window.openQuickDebtModal = function(customerId, customerName) {
+        try {
+            currentQuickCustomerId = customerId;
+            const nameElement = document.getElementById('quickDebtCustomerName');
+            const formElement = document.getElementById('quickDebtForm');
+            
+            if (!nameElement || !formElement) {
+                console.error('Modal elements not found');
+                return;
+            }
+            
+            nameElement.textContent = customerName;
+            formElement.action = `/customers/${customerId}/add-debt`;
+            
+            // Clear previous items
+            const container = document.getElementById('quickItemsContainer');
+            if (container) {
+                container.innerHTML = '';
+                quickItemCount = 0;
+                window.addQuickItem();
+            }
+            
+            if (typeof openModal === 'function') {
+                openModal('quickDebtModal');
+            } else {
+                console.error('openModal function not found');
+                const modal = document.getElementById('quickDebtModal');
+                if (modal) {
+                    modal.classList.add('active');
+                    if (typeof lucide !== 'undefined') {
+                        lucide.createIcons();
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error opening quick debt modal:', error);
+        }
+    };
+
+    // Quick Pay Modal - Make sure it's globally accessible
+    window.openQuickPayModal = function(customerId, customerName) {
+        try {
+            currentQuickCustomerId = customerId;
+            const nameElement = document.getElementById('quickPayCustomerName');
+            const formElement = document.getElementById('quickPayForm');
+            
+            if (!nameElement || !formElement) {
+                console.error('Modal elements not found');
+                return;
+            }
+            
+            nameElement.textContent = customerName;
+            formElement.action = `/customers/${customerId}/add-payment`;
+            
+            if (typeof openModal === 'function') {
+                openModal('quickPayModal');
+            } else {
+                console.error('openModal function not found');
+                const modal = document.getElementById('quickPayModal');
+                if (modal) {
+                    modal.classList.add('active');
+                    if (typeof lucide !== 'undefined') {
+                        lucide.createIcons();
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error opening quick pay modal:', error);
+        }
+    };
+
+    // Add item to quick debt form - Make globally accessible
+    window.addQuickItem = function() {
+        const container = document.getElementById('quickItemsContainer');
+        const products = window.productsData || [];
+
+        const itemHtml = `
+            <div class="item-row" id="quick-item-${quickItemCount}">
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; flex: 1;">
+                    <select onchange="window.selectQuickProduct(${quickItemCount}, this.value)" class="form-control" id="quick-select-${quickItemCount}">
+                        <option value="">-- Select Product --</option>
+                        ${products.map(p => `<option value="${p.id}" data-price="${p.price}">${p.name} - $${parseFloat(p.price).toFixed(2)}</option>`).join('')}
+                    </select>
+                    <input type="text" name="product_name_${quickItemCount}" placeholder="Or type custom product name" class="form-control" id="quick-custom-name-${quickItemCount}" oninput="window.handleCustomNameInput(${quickItemCount})">
+                </div>
+                <input type="number" name="price_${quickItemCount}" placeholder="$ Price" step="0.01" min="0" class="form-control" id="quick-price-${quickItemCount}">
+                <input type="number" name="quantity_${quickItemCount}" value="1" min="1" class="form-control">
+                <button type="button" class="remove-item" onclick="window.removeQuickItem(${quickItemCount})">
+                    <i data-lucide="x" style="width: 16px; height: 16px;"></i>
+                </button>
+            </div>
+        `;
+
+        container.insertAdjacentHTML('beforeend', itemHtml);
+        quickItemCount++;
+
+        // Reinitialize lucide icons
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+
+    window.selectQuickProduct = function(index, value) {
+        const customNameInput = document.getElementById(`quick-custom-name-${index}`);
+        const priceInput = document.getElementById(`quick-price-${index}`);
+        const select = document.getElementById(`quick-select-${index}`);
+
+        if (value) {
+            // Product selected from dropdown
+            const selectedOption = select.options[select.selectedIndex];
+            const price = selectedOption.dataset.price;
+            const name = selectedOption.text.split(' - $')[0];
+
+            // Clear custom name input when product is selected
+            customNameInput.value = '';
+            customNameInput.required = false;
+            
+            // Set the product name in hidden field (will be used on submit)
+            customNameInput.setAttribute('data-selected-name', name);
+            priceInput.value = price;
+        } else {
+            // Nothing selected - clear everything
+            customNameInput.value = '';
+            customNameInput.removeAttribute('data-selected-name');
+            customNameInput.required = false;
+            priceInput.value = '';
+        }
+    }
+
+    window.handleCustomNameInput = function(index) {
+        const customNameInput = document.getElementById(`quick-custom-name-${index}`);
+        const select = document.getElementById(`quick-select-${index}`);
+        
+        // If user types in custom name, clear the select dropdown
+        if (customNameInput.value.trim()) {
+            select.value = '';
+            customNameInput.removeAttribute('data-selected-name');
+            customNameInput.required = true;
+        } else {
+            customNameInput.required = false;
+        }
+    }
+
+    window.removeQuickItem = function(index) {
+        const item = document.getElementById(`quick-item-${index}`);
+        if (item) {
+            item.remove();
+        }
+    }
+
+    window.validateQuickDebtForm = function() {
+        const items = document.querySelectorAll('#quickItemsContainer .item-row');
+        let hasValidItem = false;
+
+        items.forEach(item => {
+            const nameInput = item.querySelector('input[name^="product_name"]');
+            const priceInput = item.querySelector('input[name^="price"]');
+            const select = item.querySelector('select');
+
+            // If product is selected from dropdown, use that name
+            if (select && select.value) {
+                const selectedOption = select.options[select.selectedIndex];
+                const name = selectedOption.text.split(' - $')[0];
+                nameInput.value = name;
+            }
+            // Otherwise, use the custom name input value (if user typed something)
+
+            if (nameInput.value && nameInput.value.trim() && priceInput.value) {
+                hasValidItem = true;
+            }
+        });
+
+        if (!hasValidItem) {
+            alert('Please add at least one item with a name and price.');
+            return false;
+        }
+
+        return true;
+    };
+
+    // Submit quick debt form via AJAX
+    window.submitQuickDebtForm = function(event) {
+        event.preventDefault();
+        
+        if (!window.validateQuickDebtForm()) {
+            return false;
+        }
+
+        const form = document.getElementById('quickDebtForm');
+        const formData = new FormData(form);
+        const submitBtn = form.querySelector('button[type="submit"]');
+        
+        // Disable submit button
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i data-lucide="loader" style="width: 14px; height: 14px; animation: spin 1s linear infinite;"></i> Adding...';
+        
+        fetch(form.action, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (response.ok) {
+                // Close modal
+                closeModal('quickDebtModal');
+                // Reload page to update stats
+                window.location.reload();
+            } else {
+                throw new Error('Failed to add debt');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to add debt. Please try again.');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i data-lucide="check"></i> Add Debt';
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        });
+        
+        return false;
+    };
+
+    // Submit quick payment form via AJAX
+    window.submitQuickPayForm = function(event) {
+        event.preventDefault();
+        
+        const form = document.getElementById('quickPayForm');
+        const formData = new FormData(form);
+        const submitBtn = form.querySelector('button[type="submit"]');
+        
+        // Disable submit button
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i data-lucide="loader" style="width: 14px; height: 14px; animation: spin 1s linear infinite;"></i> Recording...';
+        
+        fetch(form.action, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (response.ok) {
+                // Close modal
+                closeModal('quickPayModal');
+                // Reload page to update stats
+                window.location.reload();
+            } else {
+                throw new Error('Failed to record payment');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to record payment. Please try again.');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i data-lucide="check"></i> Record Payment';
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        });
+        
+        return false;
+    };
+
+    // Show items from button data attributes
+    window.showItemsFromButton = function(button) {
+        try {
+            const itemsJson = button.getAttribute('data-items');
+            const customerName = button.getAttribute('data-customer-name');
+            const date = button.getAttribute('data-date');
+            const items = JSON.parse(itemsJson);
+            window.showItemsDetails(items, customerName, date);
+        } catch (error) {
+            console.error('Error parsing items:', error);
+            alert('Error loading items. Please try again.');
+        }
+    };
+
+    // Show items details modal
+    window.showItemsDetails = function(items, customerName, date) {
+        document.getElementById('itemsModalCustomerName').textContent = customerName;
+        document.getElementById('itemsModalDate').textContent = date;
+        
+        const tbody = document.getElementById('itemsModalBody');
+        tbody.innerHTML = '';
+        
+        let grandTotal = 0;
+        
+        items.forEach(item => {
+            const quantity = item.quantity || 1;
+            const price = parseFloat(item.price) || 0;
+            const itemTotal = price * quantity;
+            grandTotal += itemTotal;
+            
+            const row = document.createElement('tr');
+            row.style.borderBottom = '1px solid #f1f5f9';
+            row.innerHTML = `
+                <td style="padding: 0.75rem;">
+                    <strong style="color: #1e293b;">${item.product_name || 'Unknown Product'}</strong>
+                </td>
+                <td style="padding: 0.75rem; text-align: center; color: #475569;">${quantity}</td>
+                <td style="padding: 0.75rem; text-align: right; color: #475569;">$${price.toFixed(2)}</td>
+                <td style="padding: 0.75rem; text-align: right; font-weight: 600; color: #1e293b;">$${itemTotal.toFixed(2)}</td>
+            `;
+            tbody.appendChild(row);
+        });
+        
+        document.getElementById('itemsModalGrandTotal').textContent = '$' + grandTotal.toFixed(2);
+        
+        openModal('itemsDetailsModal');
+        
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    };
+
+    // Recent Activity Toggle
+    window.toggleRecentActivity = function() {
+        const content = document.getElementById('recentActivityContent');
+        const icon = document.getElementById('toggleActivityIcon');
+        const text = document.getElementById('toggleActivityText');
+        
+        if (content.style.display === 'none') {
+            content.style.display = 'block';
+            icon.setAttribute('data-lucide', 'chevron-up');
+            text.textContent = 'Collapse';
+        } else {
+            content.style.display = 'none';
+            icon.setAttribute('data-lucide', 'chevron-down');
+            text.textContent = 'Expand';
+        }
+        
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    };
+
+    // Convert 24-hour time to 12-hour format (hours and minutes only, no seconds)
+    function formatTime12h(time24) {
+        if (!time24 || time24 === '00:00:00') return '';
+        const parts = time24.split(':');
+        if (parts.length < 2) return time24;
+        const hour24 = parseInt(parts[0]);
+        const minutes = parts[1];
+        const hour12 = hour24 === 0 ? 12 : (hour24 > 12 ? hour24 - 12 : hour24);
+        const ampm = hour24 >= 12 ? 'PM' : 'AM';
+        return `${hour12}:${minutes} ${ampm}`;
+    }
+
+    // Toggle view all customers - default shows recent 4
+    window.showingAllCustomers = false;
+    window.toggleViewAllCustomers = function() {
+        window.showingAllCustomers = !window.showingAllCustomers;
+        const viewAllIcon = document.getElementById('viewAllIcon');
+        const viewAllText = document.getElementById('viewAllText');
+        const searchInput = document.getElementById('searchInput');
+        
+        // Update button text and icon
+        if (window.showingAllCustomers) {
+            if (viewAllText) viewAllText.textContent = 'Show Recent';
+            if (viewAllIcon && typeof lucide !== 'undefined') {
+                viewAllIcon.setAttribute('data-lucide', 'arrow-left');
+                lucide.createIcons();
+            }
+        } else {
+            if (viewAllText) viewAllText.textContent = 'Show All';
+            if (viewAllIcon && typeof lucide !== 'undefined') {
+                viewAllIcon.setAttribute('data-lucide', 'arrow-right');
+                lucide.createIcons();
+            }
+        }
+        
+        // Trigger search event to update visibility based on current search and toggle state
+        if (searchInput) {
+            searchInput.dispatchEvent(new Event('input'));
+        }
+    };
+
+    // Recent Activity Type Filter
+    let currentRecentActivityFilter = 'debt'; // Default to debts
+    
+    window.setRecentActivityTypeFilter = function(value) {
+        currentRecentActivityFilter = value;
+        
+        // Update button states
+        const buttons = document.querySelectorAll('#recentActivityTypeFilterBtns .filter-btn');
+        buttons.forEach(btn => {
+            if (btn.dataset.value === value) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+        
+        filterRecentActivity();
+    };
+
+    function filterRecentActivity() {
+        const rows = document.querySelectorAll('.recent-activity-row');
+        const summary = document.getElementById('recentActivityFilterSummary');
+        let visibleCount = 0;
+        const totalCount = rows.length;
+        
+        rows.forEach(row => {
+            const rowType = row.dataset.type;
+            let show = true;
+            
+            if (currentRecentActivityFilter !== 'all') {
+                show = rowType === currentRecentActivityFilter;
+            }
+            
+            if (show) {
+                row.classList.remove('filter-hidden');
+                visibleCount++;
+            } else {
+                row.classList.add('filter-hidden');
+            }
+        });
+        
+        // Update summary
+        if (currentRecentActivityFilter === 'all' && visibleCount === totalCount) {
+            summary.textContent = `Showing all ${totalCount} entries`;
+        } else {
+            summary.textContent = `Showing ${visibleCount} of ${totalCount} entries`;
+        }
+    }
+
+    // Event delegation for profile card buttons
+    document.addEventListener('DOMContentLoaded', function() {
+        // Convert all 24-hour times to 12-hour format in recent activity
+        document.querySelectorAll('.time-12h').forEach(el => {
+            const time24 = el.getAttribute('data-time-24');
+            if (time24) {
+                el.textContent = formatTime12h(time24);
+            }
+        });
+        
+        // Apply default filter (debts) on page load
+        filterRecentActivity();
+        
+        // Use event delegation on the cards grid
+        const cardsGrid = document.querySelector('.customer-cards-grid');
+        if (cardsGrid) {
+            cardsGrid.addEventListener('click', function(e) {
+                // Find the button that was clicked (check for the action buttons in profile-actions)
+                const btn = e.target.closest('.profile-actions .btn-debt, .profile-actions .btn-success');
+                if (!btn) return;
+
+                // Prevent event from bubbling up
+                e.preventDefault();
+                e.stopPropagation();
+
+                const customerId = btn.dataset.customerId;
+                const customerName = btn.dataset.customerName;
+
+                console.log('Button clicked:', { customerId, customerName, action: btn.dataset.action });
+
+                if (!customerId || !customerName) {
+                    console.error('Missing customer data on button');
+                    return;
+                }
+
+                // Check if it's a debt or pay button
+                if (btn.classList.contains('btn-debt')) {
+                    console.log('Opening debt modal for', customerName);
+                    window.openQuickDebtModal(customerId, customerName);
+                } else if (btn.dataset.action === 'pay') {
+                    console.log('Opening pay modal for', customerName);
+                    window.openQuickPayModal(customerId, customerName);
+                }
+            });
+        }
+
+    });
+
+    // Confirm delete with dialog
+    window.confirmDelete = function(btn) {
+        const customerId = btn.dataset.customerId;
+        const customerName = btn.dataset.customerName;
+
+        showConfirmDialog(
+            'Delete Customer',
+            `Are you sure you want to delete "${customerName}" and all their records? This action cannot be undone.`,
+            function() {
+                document.getElementById('deleteForm' + customerId).submit();
+            },
+            'Delete',
+            'btn-danger'
+        );
+    };
+</script>
+{% endblock %}

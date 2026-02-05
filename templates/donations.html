@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}Donations - Pharmacy Thabet{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i data-lucide="heart" class="icon-info"></i>
+        Donations
+    </h1>
+    <a href="{{ url_for('add_donation') }}" class="btn btn-primary">
+        <i data-lucide="plus"></i>
+        Add Donation
+    </a>
+</div>
+
+<!-- Summary Cards -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+    <div class="card" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1px solid #86efac;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div style="width: 48px; height: 48px; background: #22c55e; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                <i data-lucide="heart" style="width: 24px; height: 24px; color: white;"></i>
+            </div>
+            <div>
+                <div style="font-size: 0.875rem; color: #166534; font-weight: 500;">Total Donations</div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: #15803d;">${{ "%.2f"|format(total_donations) }}</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #fcd34d;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div style="width: 48px; height: 48px; background: #f59e0b; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                <i data-lucide="dollar-sign" style="width: 24px; height: 24px; color: white;"></i>
+            </div>
+            <div>
+                <div style="font-size: 0.875rem; color: #92400e; font-weight: 500;">Total Used</div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: #b45309;">${{ "%.2f"|format(total_used) }}</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #93c5fd;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div style="width: 48px; height: 48px; background: #3b82f6; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                <i data-lucide="wallet" style="width: 24px; height: 24px; color: white;"></i>
+            </div>
+            <div>
+                <div style="font-size: 0.875rem; color: #1e40af; font-weight: 500;">Available</div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: #2563eb;">${{ "%.2f"|format(total_available) }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card card-info">
+    <div class="card-header">
+        <h2 class="card-title">
+            <i data-lucide="list"></i>
+            All Donations
+        </h2>
+        <span class="badge badge-info">
+            {{ donations|length }} donations
+        </span>
+    </div>
+
+    {% if donations %}
+    <div class="table-container">
+        <table class="table-modern">
+            <thead>
+                <tr>
+                    <th><span class="th-content"><i data-lucide="calendar" style="width: 14px; height: 14px;"></i> Date</span></th>
+                    <th><span class="th-content"><i data-lucide="user" style="width: 14px; height: 14px;"></i> Donor</span></th>
+                    <th class="text-right"><span class="th-content"><i data-lucide="dollar-sign" style="width: 14px; height: 14px;"></i> Amount</span></th>
+                    <th class="text-right"><span class="th-content"><i data-lucide="trending-down" style="width: 14px; height: 14px;"></i> Used</span></th>
+                    <th class="text-right"><span class="th-content"><i data-lucide="wallet" style="width: 14px; height: 14px;"></i> Remaining</span></th>
+                    <th style="text-align: center;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for donation in donations %}
+                <tr>
+                    <td>
+                        <span style="color: #64748b; font-size: 0.875rem;">
+                            {{ donation.created_at[:10] }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if donation.donor_name %}
+                        <strong>{{ donation.donor_name }}</strong>
+                        {% else %}
+                        <span style="color: #94a3b8;">Anonymous</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-right">
+                        <span class="amount-value amount-neutral">
+                            ${{ "%.2f"|format(donation.amount) }}
+                        </span>
+                    </td>
+                    <td class="text-right">
+                        <span class="amount-value" style="color: #f59e0b;">
+                            ${{ "%.2f"|format(donation.amount_used) }}
+                        </span>
+                    </td>
+                    <td class="text-right">
+                        {% if donation.amount_remaining > 0 %}
+                        <span class="amount-value" style="color: #22c55e;">
+                            ${{ "%.2f"|format(donation.amount_remaining) }}
+                        </span>
+                        {% else %}
+                        <span class="amount-value" style="color: #94a3b8;">
+                            $0.00
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="action-buttons">
+                            {% if donation.amount_remaining > 0 %}
+                            <a href="{{ url_for('use_donation', donation_id=donation.id) }}" class="btn btn-success btn-sm">
+                                <i data-lucide="gift" style="width: 14px; height: 14px;"></i>
+                                Use
+                            </a>
+                            {% else %}
+                            <span class="badge badge-info" style="font-size: 0.75rem;">
+                                Fully Used
+                            </span>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% if donation.notes %}
+                <tr style="background: #f8fafc;">
+                    <td colspan="6" style="padding: 0.5rem 1rem; font-size: 0.875rem; color: #64748b;">
+                        <i data-lucide="file-text" style="width: 14px; height: 14px; vertical-align: middle;"></i>
+                        {{ donation.notes }}
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i data-lucide="heart" style="width: 48px; height: 48px; opacity: 0.3;"></i>
+        <p>No donations yet. Add your first donation to help customers in need.</p>
+        <a href="{{ url_for('add_donation') }}" class="btn btn-primary" style="margin-top: 1rem;">
+            <i data-lucide="plus"></i>
+            Add Donation
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Usage History -->
+{% if usage_history %}
+<div class="card" style="margin-top: 2rem;">
+    <div class="card-header">
+        <h2 class="card-title">
+            <i data-lucide="history"></i>
+            Usage History
+        </h2>
+    </div>
+    <div class="table-container">
+        <table class="table-modern">
+            <thead>
+                <tr>
+                    <th><span class="th-content"><i data-lucide="calendar" style="width: 14px; height: 14px;"></i> Date</span></th>
+                    <th><span class="th-content"><i data-lucide="user" style="width: 14px; height: 14px;"></i> Customer</span></th>
+                    <th><span class="th-content"><i data-lucide="heart" style="width: 14px; height: 14px;"></i> Donor</span></th>
+                    <th class="text-right"><span class="th-content"><i data-lucide="dollar-sign" style="width: 14px; height: 14px;"></i> Amount Used</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for usage in usage_history %}
+                <tr>
+                    <td>
+                        <span style="color: #64748b; font-size: 0.875rem;">
+                            {{ usage.created_at[:10] }}
+                        </span>
+                    </td>
+                    <td>
+                        <a href="{{ url_for('customer_detail', customer_id=usage.customer_id) }}" style="text-decoration: none; color: inherit;">
+                            <strong>{{ usage.customer_name }}</strong>
+                        </a>
+                    </td>
+                    <td>
+                        {% if usage.donor_name %}
+                        {{ usage.donor_name }}
+                        {% else %}
+                        <span style="color: #94a3b8;">Anonymous</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-right">
+                        <span class="amount-value" style="color: #22c55e;">
+                            ${{ "%.2f"|format(usage.amount_used) }}
+                        </span>
+                    </td>
+                </tr>
+                {% if usage.notes %}
+                <tr style="background: #f8fafc;">
+                    <td colspan="4" style="padding: 0.5rem 1rem; font-size: 0.875rem; color: #64748b;">
+                        <i data-lucide="file-text" style="width: 14px; height: 14px; vertical-align: middle;"></i>
+                        {{ usage.notes }}
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    lucide.createIcons();
+</script>
+{% endblock %}
+
+
+
+
+

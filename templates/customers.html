@@ -1,0 +1,667 @@
+{% extends "base.html" %}
+
+{% block title %}Customers - Pharmacy Thabet{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i data-lucide="users" class="icon-info"></i>
+        Customers
+    </h1>
+    <a href="{{ url_for('add_customer') }}" class="btn btn-primary">
+        <i data-lucide="user-plus"></i>
+        Add Customer
+    </a>
+</div>
+
+<!-- Search -->
+<div class="search-container">
+    <span class="search-icon">
+        <i data-lucide="search"></i>
+    </span>
+    <input type="text" id="searchInput" class="search-input" placeholder="Search customers by name...">
+    <div id="searchResults" class="search-results"></div>
+</div>
+
+<div class="card card-info">
+    <div class="card-header">
+        <h2 class="card-title">
+            <i data-lucide="list"></i>
+            All Customers
+        </h2>
+        <span class="badge badge-info">
+            {{ total }} total
+        </span>
+    </div>
+
+    {% if customers %}
+    <div class="table-container">
+        <table class="table-modern table-responsive-cards" id="customersTable">
+            <thead>
+                <tr>
+                    <th class="sortable" data-sort="name" onclick="sortTable('name')">
+                        <span class="th-content">
+                            <i data-lucide="user" style="width: 14px; height: 14px;"></i> Customer
+                            <span class="sort-icon">
+                                <i data-lucide="chevrons-up-down" style="width: 14px; height: 14px;"></i>
+                            </span>
+                        </span>
+                    </th>
+                    <th class="text-right sortable" data-sort="debt" onclick="sortTable('debt')">
+                        <span class="th-content">
+                            <i data-lucide="trending-down" style="width: 14px; height: 14px;"></i> Owes
+                            <span class="sort-icon">
+                                <i data-lucide="chevrons-up-down" style="width: 14px; height: 14px;"></i>
+                            </span>
+                        </span>
+                    </th>
+                    <th class="text-right"><span class="th-content"><i data-lucide="credit-card" style="width: 14px; height: 14px;"></i> Quick Actions</span></th>
+                    <th style="text-align: center;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="customersTableBody">
+                {% for customer in customers %}
+                <tr data-name="{{ customer.name|lower }}" data-debt="{{ customer.debt }}">
+                    <!-- Customer with Avatar -->
+                    <td data-label="Customer">
+                        <a href="{{ url_for('customer_detail', customer_id=customer.id) }}" style="text-decoration: none;">
+                            <div class="customer-cell">
+                                <div class="customer-avatar">
+                                    {% if customer.profile_image %}
+                                    <img src="{{ url_for('static', filename='uploads/' + customer.profile_image) }}" alt="{{ customer.name }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 10px;">
+                                    {% else %}
+                                    {{ customer.name[:2]|upper }}
+                                    {% endif %}
+                                </div>
+                                <div class="customer-name-cell">
+                                    <span class="customer-name-text">{{ customer.name }}</span>
+                                    {% if customer.phone %}
+                                    <span class="customer-phone-text">
+                                        <i data-lucide="phone" style="width: 11px; height: 11px;"></i>
+                                        {{ customer.phone }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </a>
+                    </td>
+                    <!-- Owed Column (Remaining Balance - auto updates when paid) -->
+                    <td class="text-right" data-label="Owes">
+                        <div class="amount-cell">
+                            {% if customer.debt > 0 %}
+                            <span class="amount-value amount-debt">
+                                ${{ "%.2f"|format(customer.display_debt) }}
+                            </span>
+                            {% if customer.total_paid and customer.total_paid > 0 %}
+                            <span class="amount-context">
+                                was ${{ "%.2f"|format(customer.total_debt_added or 0) }}
+                            </span>
+                            {% endif %}
+                            {% else %}
+                            <span class="amount-value amount-neutral">
+                                $0.00
+                            </span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <!-- Quick Actions Column -->
+                    <td class="text-right">
+                        <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                            <button type="button" class="btn btn-debt btn-sm" onclick="openQuickDebtModal({{ customer.id }}, '{{ customer.name }}')" title="Add Debt">
+                                <i data-lucide="plus-circle" style="width: 14px; height: 14px;"></i>
+                                Add Debt
+                            </button>
+                            {% if customer.debt > 0 %}
+                            <button type="button" class="btn btn-success btn-sm" onclick="openQuickPayModal({{ customer.id }}, '{{ customer.name }}')" title="Record Payment">
+                                <i data-lucide="banknote" style="width: 14px; height: 14px;"></i>
+                                Pay
+                            </button>
+                            {% elif customer.debt < 0 %}
+                            <span class="balance-chip balance-credit" title="Customer has credit">
+                                <i data-lucide="gift" style="width: 14px; height: 14px;"></i>
+                                +${{ "%.2f"|format(customer.debt|abs) }} credit
+                            </span>
+                            {% else %}
+                            <span class="balance-chip balance-zero" title="No outstanding balance">
+                                <i data-lucide="check-circle" style="width: 14px; height: 14px;"></i>
+                                Paid
+                            </span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        <div class="action-buttons">
+                            <a href="{{ url_for('customer_detail', customer_id=customer.id) }}" class="btn btn-view">
+                                <i data-lucide="eye" style="width: 16px; height: 16px;"></i>
+                                View
+                            </a>
+                            <a href="{{ url_for('edit_customer', customer_id=customer.id) }}" class="btn-round btn-round-edit" title="Edit">
+                                <i data-lucide="pencil" style="width: 16px; height: 16px;"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div class="pagination-container">
+        <div class="pagination-info">
+            Showing {{ (page - 1) * per_page + 1 }} to {% if page * per_page > total %}{{ total }}{% else %}{{ page * per_page }}{% endif %} of {{ total }} customers
+        </div>
+        <div class="pagination">
+            <!-- Previous -->
+            <a href="{{ url_for('customers', page=page-1, per_page=per_page) }}"
+               class="pagination-btn {% if page == 1 %}disabled{% endif %}"
+               {% if page == 1 %}onclick="return false;"{% endif %}>
+                <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i>
+            </a>
+
+            <!-- Page numbers -->
+            {% for p in range(1, total_pages + 1) %}
+                {% if p == 1 or p == total_pages or (p >= page - 1 and p <= page + 1) %}
+                    <a href="{{ url_for('customers', page=p, per_page=per_page) }}"
+                       class="pagination-btn {% if p == page %}active{% endif %}">
+                        {{ p }}
+                    </a>
+                {% elif p == page - 2 or p == page + 2 %}
+                    <span class="pagination-ellipsis">...</span>
+                {% endif %}
+            {% endfor %}
+
+            <!-- Next -->
+            <a href="{{ url_for('customers', page=page+1, per_page=per_page) }}"
+               class="pagination-btn {% if page == total_pages %}disabled{% endif %}"
+               {% if page == total_pages %}onclick="return false;"{% endif %}>
+                <i data-lucide="chevron-right" style="width: 16px; height: 16px;"></i>
+            </a>
+        </div>
+        <div class="items-per-page">
+            <span>Show</span>
+            <select onchange="window.location.href='{{ url_for('customers') }}?page=1&per_page=' + this.value">
+                <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+                <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+            </select>
+            <span>per page</span>
+        </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <i data-lucide="users" style="width: 48px; height: 48px; opacity: 0.3;"></i>
+        <p>No customers yet. Add your first customer to get started.</p>
+        <a href="{{ url_for('add_customer') }}" class="btn btn-primary" style="margin-top: 1rem;">
+            <i data-lucide="user-plus"></i>
+            Add Customer
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Quick Add Debt Modal -->
+<div class="modal-overlay" id="quickDebtModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 class="modal-title debt">
+                <i data-lucide="plus-circle"></i>
+                Quick Add Debt - <span id="quickDebtCustomerName"></span>
+            </h3>
+            <button class="modal-close" onclick="closeModal('quickDebtModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+
+        <form id="quickDebtForm" method="POST" onsubmit="return window.submitQuickDebtForm(event)">
+            <div class="form-group">
+                <label class="form-label">Items</label>
+                <!-- Column headers for a clearer layout -->
+                <div class="items-header">
+                    <span class="items-header-cell">Item</span>
+                    <span class="items-header-cell text-right">Price</span>
+                    <span class="items-header-cell text-right">Qty</span>
+                    <span class="items-header-cell items-header-cell-actions"></span>
+                </div>
+                <div class="items-list" id="quickItemsContainer">
+                    <!-- Items will be added here by JavaScript -->
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="window.addQuickItem()">
+                    <i data-lucide="plus"></i>
+                    Add Item
+                </button>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Notes (optional)</label>
+                <input type="text" name="notes" class="form-control" placeholder="Any notes">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Date (optional)</label>
+                <input type="date" name="debt_date" class="form-control" placeholder="Leave empty for today">
+                <span style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem; display: block;">Leave empty to use today's date</span>
+            </div>
+
+            <div class="btn-group">
+                <button type="submit" class="btn btn-debt">
+                    <i data-lucide="check"></i>
+                    Add Debt
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('quickDebtModal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Quick Pay Modal -->
+<div class="modal-overlay" id="quickPayModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 class="modal-title payment">
+                <i data-lucide="banknote"></i>
+                Quick Payment - <span id="quickPayCustomerName"></span>
+            </h3>
+            <button class="modal-close" onclick="closeModal('quickPayModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+
+        <form id="quickPayForm" method="POST" onsubmit="return window.submitQuickPayForm(event)">
+            <input type="hidden" name="payment_method" value="CASH">
+            <div class="form-group">
+                <label class="form-label">Amount *</label>
+                <input type="number" name="amount" class="form-control" required step="0.01" min="0.01" placeholder="How much did they pay?">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Notes (optional)</label>
+                <input type="text" name="notes" class="form-control" placeholder="Any notes">
+            </div>
+
+            <div class="btn-group">
+                <button type="submit" class="btn btn-success">
+                    <i data-lucide="check"></i>
+                    Record Payment
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('quickPayModal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Pass products data to JavaScript
+    window.productsData = {{ products | tojson }};
+
+    // Search functionality for customers table
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('searchInput');
+        const tableBody = document.getElementById('customersTableBody');
+        
+        if (searchInput && tableBody) {
+            let debounceTimer;
+            
+            searchInput.addEventListener('input', function() {
+                clearTimeout(debounceTimer);
+                const query = this.value.trim().toLowerCase();
+                
+                debounceTimer = setTimeout(() => {
+                    const rows = tableBody.querySelectorAll('tr');
+                    
+                    rows.forEach(row => {
+                        // Get name from data attribute (already lowercase)
+                        const nameFromData = (row.dataset.name || '').toLowerCase();
+                        
+                        // Get text content from name and phone elements
+                        const customerNameText = row.querySelector('.customer-name-text');
+                        const customerPhoneText = row.querySelector('.customer-phone-text');
+                        const nameText = customerNameText ? customerNameText.textContent.trim().toLowerCase() : '';
+                        const phoneText = customerPhoneText ? customerPhoneText.textContent.trim().toLowerCase().replace(/\s+/g, '') : '';
+                        
+                        if (query.length === 0) {
+                            // Show all rows when search is empty
+                            row.style.display = '';
+                        } else {
+                            // Filter rows based on search query - check name and phone
+                            const matchesName = nameText.includes(query) || nameFromData.includes(query);
+                            const matchesPhone = phoneText.includes(query);
+                            
+                            if (matchesName || matchesPhone) {
+                                row.style.display = '';
+                            } else {
+                                row.style.display = 'none';
+                            }
+                        }
+                    });
+                }, 150);
+            });
+        }
+    });
+
+    // Table Sorting
+    let currentSort = { column: null, direction: 'asc' };
+
+    window.sortTable = function(column) {
+        const table = document.getElementById('customersTable');
+        const tbody = document.getElementById('customersTableBody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const headers = table.querySelectorAll('th.sortable');
+
+        // Toggle direction if same column
+        if (currentSort.column === column) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.column = column;
+            currentSort.direction = 'asc';
+        }
+
+        // Update header classes
+        headers.forEach(th => {
+            th.classList.remove('asc', 'desc');
+            if (th.dataset.sort === column) {
+                th.classList.add(currentSort.direction);
+            }
+        });
+
+        // Sort rows
+        rows.sort((a, b) => {
+            let aVal = a.dataset[column];
+            let bVal = b.dataset[column];
+
+            // Handle numeric values
+            if (column === 'debt') {
+                aVal = parseFloat(aVal) || 0;
+                bVal = parseFloat(bVal) || 0;
+            } else {
+                aVal = aVal.toLowerCase();
+                bVal = bVal.toLowerCase();
+            }
+
+            if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
+            if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        // Re-append sorted rows
+        rows.forEach(row => tbody.appendChild(row));
+
+        // Refresh icons
+        lucide.createIcons();
+    };
+    
+    let currentQuickCustomerId = null;
+    let quickItemCount = 0;
+
+    // Initialize first item and icons
+    document.addEventListener('DOMContentLoaded', function() {
+        lucide.createIcons();
+    });
+
+    // Quick Debt Modal - Make sure it's globally accessible
+    window.openQuickDebtModal = function(customerId, customerName) {
+        try {
+            currentQuickCustomerId = customerId;
+            const nameElement = document.getElementById('quickDebtCustomerName');
+            const formElement = document.getElementById('quickDebtForm');
+            
+            if (!nameElement || !formElement) {
+                console.error('Modal elements not found');
+                return;
+            }
+            
+            nameElement.textContent = customerName;
+            formElement.action = `/customers/${customerId}/add-debt`;
+            
+            // Clear previous items
+            const container = document.getElementById('quickItemsContainer');
+            if (container) {
+                container.innerHTML = '';
+                quickItemCount = 0;
+                window.addQuickItem();
+            }
+            
+            if (typeof openModal === 'function') {
+                openModal('quickDebtModal');
+            } else {
+                const modal = document.getElementById('quickDebtModal');
+                if (modal) {
+                    modal.classList.add('active');
+                    if (typeof lucide !== 'undefined') {
+                        lucide.createIcons();
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error opening quick debt modal:', error);
+        }
+    };
+
+    // Quick Pay Modal - Make sure it's globally accessible
+    window.openQuickPayModal = function(customerId, customerName) {
+        try {
+            currentQuickCustomerId = customerId;
+            const nameElement = document.getElementById('quickPayCustomerName');
+            const formElement = document.getElementById('quickPayForm');
+            
+            if (!nameElement || !formElement) {
+                console.error('Modal elements not found');
+                return;
+            }
+            
+            nameElement.textContent = customerName;
+            formElement.action = `/customers/${customerId}/add-payment`;
+            
+            if (typeof openModal === 'function') {
+                openModal('quickPayModal');
+            } else {
+                const modal = document.getElementById('quickPayModal');
+                if (modal) {
+                    modal.classList.add('active');
+                    if (typeof lucide !== 'undefined') {
+                        lucide.createIcons();
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error opening quick pay modal:', error);
+        }
+    };
+
+    // Add item to quick debt form - Make globally accessible
+    window.addQuickItem = function() {
+        const container = document.getElementById('quickItemsContainer');
+        const products = window.productsData || [];
+
+        const itemHtml = `
+            <div class="item-row" id="quick-item-${quickItemCount}">
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; flex: 1;">
+                    <select onchange="window.selectQuickProduct(${quickItemCount}, this.value)" class="form-control" id="quick-select-${quickItemCount}">
+                        <option value="">-- Select Product --</option>
+                        ${products.map(p => `<option value="${p.id}" data-price="${p.price}">${p.name} - $${parseFloat(p.price).toFixed(2)}</option>`).join('')}
+                    </select>
+                    <input type="text" name="product_name_${quickItemCount}" placeholder="Or type custom product name" class="form-control" id="quick-custom-name-${quickItemCount}" oninput="window.handleCustomNameInput(${quickItemCount})">
+                </div>
+                <input type="number" name="price_${quickItemCount}" placeholder="$ Price" step="0.01" min="0" class="form-control" id="quick-price-${quickItemCount}">
+                <input type="number" name="quantity_${quickItemCount}" value="1" min="1" class="form-control">
+                <button type="button" class="remove-item" onclick="window.removeQuickItem(${quickItemCount})">
+                    <i data-lucide="x" style="width: 16px; height: 16px;"></i>
+                </button>
+            </div>
+        `;
+
+        container.insertAdjacentHTML('beforeend', itemHtml);
+        quickItemCount++;
+
+        // Reinitialize lucide icons
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+
+    window.selectQuickProduct = function(index, value) {
+        const customNameInput = document.getElementById(`quick-custom-name-${index}`);
+        const priceInput = document.getElementById(`quick-price-${index}`);
+        const select = document.getElementById(`quick-select-${index}`);
+
+        if (value) {
+            // Product selected from dropdown
+            const selectedOption = select.options[select.selectedIndex];
+            const price = selectedOption.dataset.price;
+            const name = selectedOption.text.split(' - $')[0];
+
+            // Clear custom name input when product is selected
+            customNameInput.value = '';
+            customNameInput.required = false;
+            
+            // Set the product name in hidden field (will be used on submit)
+            customNameInput.setAttribute('data-selected-name', name);
+            priceInput.value = price;
+        } else {
+            // Nothing selected - clear everything
+            customNameInput.value = '';
+            customNameInput.removeAttribute('data-selected-name');
+            customNameInput.required = false;
+            priceInput.value = '';
+        }
+    }
+
+    window.handleCustomNameInput = function(index) {
+        const customNameInput = document.getElementById(`quick-custom-name-${index}`);
+        const select = document.getElementById(`quick-select-${index}`);
+        
+        // If user types in custom name, clear the select dropdown
+        if (customNameInput.value.trim()) {
+            select.value = '';
+            customNameInput.removeAttribute('data-selected-name');
+            customNameInput.required = true;
+        } else {
+            customNameInput.required = false;
+        }
+    }
+
+    window.removeQuickItem = function(index) {
+        const item = document.getElementById(`quick-item-${index}`);
+        if (item) {
+            item.remove();
+        }
+    }
+
+    window.validateQuickDebtForm = function() {
+        const items = document.querySelectorAll('#quickItemsContainer .item-row');
+        let hasValidItem = false;
+
+        items.forEach(item => {
+            const nameInput = item.querySelector('input[name^="product_name"]');
+            const priceInput = item.querySelector('input[name^="price"]');
+            const select = item.querySelector('select');
+
+            // If product is selected from dropdown, use that name
+            if (select && select.value) {
+                const selectedOption = select.options[select.selectedIndex];
+                const name = selectedOption.text.split(' - $')[0];
+                nameInput.value = name;
+            }
+            // Otherwise, use the custom name input value (if user typed something)
+
+            if (nameInput.value && nameInput.value.trim() && priceInput.value) {
+                hasValidItem = true;
+            }
+        });
+
+        if (!hasValidItem) {
+            alert('Please add at least one item with a name and price.');
+            return false;
+        }
+
+        return true;
+    };
+
+    // Submit quick debt form via AJAX
+    window.submitQuickDebtForm = function(event) {
+        event.preventDefault();
+        
+        if (!window.validateQuickDebtForm()) {
+            return false;
+        }
+
+        const form = document.getElementById('quickDebtForm');
+        const formData = new FormData(form);
+        const submitBtn = form.querySelector('button[type="submit"]');
+        
+        // Disable submit button
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i data-lucide="loader" style="width: 14px; height: 14px; animation: spin 1s linear infinite;"></i> Adding...';
+        
+        fetch(form.action, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (response.ok) {
+                // Close modal
+                closeModal('quickDebtModal');
+                // Reload page to update stats
+                window.location.reload();
+            } else {
+                throw new Error('Failed to add debt');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to add debt. Please try again.');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i data-lucide="check"></i> Add Debt';
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        });
+        
+        return false;
+    };
+
+    // Submit quick payment form via AJAX
+    window.submitQuickPayForm = function(event) {
+        event.preventDefault();
+        
+        const form = document.getElementById('quickPayForm');
+        const formData = new FormData(form);
+        const submitBtn = form.querySelector('button[type="submit"]');
+        
+        // Disable submit button
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i data-lucide="loader" style="width: 14px; height: 14px; animation: spin 1s linear infinite;"></i> Recording...';
+        
+        fetch(form.action, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (response.ok) {
+                // Close modal
+                closeModal('quickPayModal');
+                // Reload page to update stats
+                window.location.reload();
+            } else {
+                throw new Error('Failed to record payment');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to record payment. Please try again.');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i data-lucide="check"></i> Record Payment';
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        });
+        
+        return false;
+    };
+</script>
+{% endblock %}

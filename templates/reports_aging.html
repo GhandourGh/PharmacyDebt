@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Aging Report - Pharmacy Thabet{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i data-lucide="clock" class="icon-debt"></i>
+        Accounts Receivable Aging Report
+    </h1>
+    <a href="{{ url_for('export_aging_pdf') }}" class="btn btn-secondary">
+        <i data-lucide="download"></i>
+        Export to PDF
+    </a>
+</div>
+
+<!-- Report Type Navigation -->
+<div class="report-nav" style="margin-bottom: 1.5rem; display: flex; gap: 0.5rem;">
+    <a href="{{ url_for('reports', type='transactions') }}" class="btn btn-secondary">
+        <i data-lucide="list"></i>
+        Transactions
+    </a>
+    <a href="{{ url_for('reports', type='aging') }}" class="btn btn-primary">
+        <i data-lucide="clock"></i>
+        Aging
+    </a>
+    <a href="{{ url_for('reports', type='daily') }}" class="btn btn-secondary">
+        <i data-lucide="calendar"></i>
+        Daily
+    </a>
+    <a href="{{ url_for('reports', type='overdue') }}" class="btn btn-secondary">
+        <i data-lucide="alert-triangle"></i>
+        Overdue
+    </a>
+</div>
+
+<!-- Summary Cards -->
+<div class="stats-grid">
+    {% set totals = {'0-30': 0, '31-60': 0, '61-90': 0, '90+': 0, 'total': 0} %}
+    {% for customer in aging_data %}
+        {% set _ = totals.update({'0-30': totals['0-30'] + (customer.days_0_30 or 0)}) %}
+        {% set _ = totals.update({'31-60': totals['31-60'] + (customer.days_31_60 or 0)}) %}
+        {% set _ = totals.update({'61-90': totals['61-90'] + (customer.days_61_90 or 0)}) %}
+        {% set _ = totals.update({'90+': totals['90+'] + (customer.days_90_plus or 0)}) %}
+        {% set _ = totals.update({'total': totals['total'] + (customer.total_debt or 0)}) %}
+    {% endfor %}
+
+    <div class="stat-card" style="border-left: 4px solid #22c55e;">
+        <div class="stat-header">
+            <div>
+                <div class="stat-label">0-30 Days (Current)</div>
+                <div class="stat-value">${{ "%.2f"|format(totals['0-30']) }}</div>
+            </div>
+            <div class="stat-icon" style="color: #22c55e;">
+                <i data-lucide="check-circle" style="width: 24px; height: 24px;"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="stat-card" style="border-left: 4px solid #eab308;">
+        <div class="stat-header">
+            <div>
+                <div class="stat-label">31-60 Days</div>
+                <div class="stat-value">${{ "%.2f"|format(totals['31-60']) }}</div>
+            </div>
+            <div class="stat-icon" style="color: #eab308;">
+                <i data-lucide="alert-circle" style="width: 24px; height: 24px;"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="stat-card" style="border-left: 4px solid #f97316;">
+        <div class="stat-header">
+            <div>
+                <div class="stat-label">61-90 Days</div>
+                <div class="stat-value">${{ "%.2f"|format(totals['61-90']) }}</div>
+            </div>
+            <div class="stat-icon" style="color: #f97316;">
+                <i data-lucide="alert-triangle" style="width: 24px; height: 24px;"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="stat-card" style="border-left: 4px solid #dc2626;">
+        <div class="stat-header">
+            <div>
+                <div class="stat-label">90+ Days (Past Due)</div>
+                <div class="stat-value">${{ "%.2f"|format(totals['90+']) }}</div>
+            </div>
+            <div class="stat-icon" style="color: #dc2626;">
+                <i data-lucide="x-circle" style="width: 24px; height: 24px;"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detail Table -->
+<div class="card card-debt">
+    <div class="card-header">
+        <h2 class="card-title">
+            <i data-lucide="list"></i>
+            Aging by Customer
+        </h2>
+        <span class="badge badge-debt">
+            {{ aging_data|length }} customers
+        </span>
+    </div>
+
+    {% if aging_data %}
+    <div class="table-container">
+        <table class="table-debt">
+            <thead>
+                <tr>
+                    <th><i data-lucide="user" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i> Customer</th>
+                    <th style="text-align: right;">0-30 Days</th>
+                    <th style="text-align: right;">31-60 Days</th>
+                    <th style="text-align: right;">61-90 Days</th>
+                    <th style="text-align: right;">90+ Days</th>
+                    <th style="text-align: right;"><strong>Total</strong></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in aging_data %}
+                <tr>
+                    <td>
+                        <a href="{{ url_for('customer_detail', customer_id=customer.id) }}">
+                            {{ customer.name }}
+                        </a>
+                    </td>
+                    <td style="text-align: right;">${{ "%.2f"|format(customer.days_0_30 or 0) }}</td>
+                    <td style="text-align: right;">
+                        {% if customer.days_31_60 > 0 %}
+                        <span style="color: #eab308;">${{ "%.2f"|format(customer.days_31_60) }}</span>
+                        {% else %}
+                        $0.00
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;">
+                        {% if customer.days_61_90 > 0 %}
+                        <span style="color: #f97316;">${{ "%.2f"|format(customer.days_61_90) }}</span>
+                        {% else %}
+                        $0.00
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;">
+                        {% if customer.days_90_plus > 0 %}
+                        <span style="color: #dc2626; font-weight: bold;">${{ "%.2f"|format(customer.days_90_plus) }}</span>
+                        {% else %}
+                        $0.00
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;"><strong>${{ "%.2f"|format(customer.total_debt or 0) }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="background: #fef2f2; font-weight: bold;">
+                    <td>TOTAL</td>
+                    <td style="text-align: right;">${{ "%.2f"|format(totals['0-30']) }}</td>
+                    <td style="text-align: right;">${{ "%.2f"|format(totals['31-60']) }}</td>
+                    <td style="text-align: right;">${{ "%.2f"|format(totals['61-90']) }}</td>
+                    <td style="text-align: right;">${{ "%.2f"|format(totals['90+']) }}</td>
+                    <td style="text-align: right;">${{ "%.2f"|format(totals['total']) }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i data-lucide="check-circle" style="width: 48px; height: 48px; opacity: 0.3; color: #22c55e;"></i>
+        <p>No outstanding receivables.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
