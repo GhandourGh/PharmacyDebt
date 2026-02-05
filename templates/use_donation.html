@@ -47,16 +47,31 @@
     <form method="POST">
         <div class="form-group">
             <label class="form-label">Customer *</label>
-            <select name="customer_id" class="form-control" required>
-                <option value="">-- Select a customer --</option>
-                {% for customer in customers %}
-                {% if customer.debt > 0 %}
-                <option value="{{ customer.id }}">
-                    {{ customer.name }} - Owes ${{ "%.2f"|format(customer.debt) }}
-                </option>
-                {% endif %}
-                {% endfor %}
-            </select>
+            <div style="position: relative;">
+                <input type="text" 
+                       id="customer_search_input" 
+                       class="form-control" 
+                       placeholder="Search customer by name or phone..."
+                       autocomplete="off"
+                       style="margin-bottom: 0.5rem;">
+                <select name="customer_id" 
+                        id="customer_select" 
+                        class="form-control" 
+                        required 
+                        style="display: none;">
+                    <option value="">-- Select a customer --</option>
+                    {% for customer in customers %}
+                    {% if customer.debt > 0 %}
+                    <option value="{{ customer.id }}" 
+                            data-name="{{ customer.name|lower }}" 
+                            data-phone="{{ customer.phone|lower if customer.phone else '' }}">
+                        {{ customer.name }} - Owes ${{ "%.2f"|format(customer.debt) }}
+                    </option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+                <div id="customer_results" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e2e8f0; border-radius: 4px; max-height: 200px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-top: 2px;"></div>
+            </div>
             <small style="color: #64748b; font-size: 0.875rem; margin-top: 0.25rem; display: block;">
                 Only customers with outstanding debt are shown
             </small>
@@ -97,11 +112,79 @@
 <script>
     lucide.createIcons();
     
-    // Auto-update max when customer changes
-    document.querySelector('select[name="customer_id"]').addEventListener('change', function() {
-        const customerId = this.value;
-        if (customerId) {
-            // You could fetch customer debt here and update max, but for now we'll keep it simple
+    // Searchable customer dropdown
+    const customerSearchInput = document.getElementById('customer_search_input');
+    const customerSelect = document.getElementById('customer_select');
+    const customerResults = document.getElementById('customer_results');
+    const allCustomers = Array.from(customerSelect.options).slice(1); // Skip first empty option
+    
+    let selectedCustomerId = null;
+    
+    // Show search input, hide select
+    customerSelect.style.display = 'none';
+    customerSearchInput.style.display = 'block';
+    
+    // Filter customers as user types
+    customerSearchInput.addEventListener('input', function() {
+        const query = this.value.trim().toLowerCase();
+        selectedCustomerId = null;
+        
+        if (query.length === 0) {
+            customerResults.style.display = 'none';
+            customerSelect.value = '';
+            return;
+        }
+        
+        // Filter customers
+        const matches = allCustomers.filter(option => {
+            const name = option.dataset.name || '';
+            const phone = option.dataset.phone || '';
+            return name.includes(query) || phone.includes(query);
+        });
+        
+        // Display results
+        if (matches.length === 0) {
+            customerResults.innerHTML = '<div style="padding: 0.75rem; color: #64748b; text-align: center;">No customers found</div>';
+            customerResults.style.display = 'block';
+        } else {
+            customerResults.innerHTML = matches.map(option => {
+                const optionText = option.textContent.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                return `<div class="customer-option" 
+                             data-id="${option.value}" 
+                             style="padding: 0.75rem; cursor: pointer; border-bottom: 1px solid #f1f5f9;"
+                             onmouseover="this.style.backgroundColor='#f8fafc'"
+                             onmouseout="this.style.backgroundColor='white'"
+                             onclick="selectCustomer(${option.value}, '${optionText}')">
+                        ${option.textContent}
+                        </div>`;
+            }).join('');
+            customerResults.style.display = 'block';
+        }
+    });
+    
+    // Select customer from results
+    window.selectCustomer = function(customerId, customerText) {
+        selectedCustomerId = customerId;
+        customerSelect.value = customerId;
+        customerSearchInput.value = customerText.split(' - ')[0]; // Show just the name
+        customerResults.style.display = 'none';
+    };
+    
+    // Hide results when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!customerSearchInput.contains(e.target) && !customerResults.contains(e.target)) {
+            customerResults.style.display = 'none';
+        }
+    });
+    
+    // Ensure customer is selected before form submit
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function(e) {
+        if (!selectedCustomerId) {
+            e.preventDefault();
+            alert('Please select a customer from the search results');
+            customerSearchInput.focus();
+            return false;
         }
     });
 </script>

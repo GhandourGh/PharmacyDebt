@@ -912,12 +912,15 @@ def add_donation():
 
         except ValidationError as e:
             flash(e.message, 'error')
-            return render_template('add_donation.html')
+            donor_names = db.get_unique_donor_names()
+            return render_template('add_donation.html', donor_names=donor_names)
         except Exception as e:
             flash(f'An unexpected error occurred: {str(e)}', 'error')
-            return render_template('add_donation.html')
+            donor_names = db.get_unique_donor_names()
+            return render_template('add_donation.html', donor_names=donor_names)
 
-    return render_template('add_donation.html')
+    donor_names = db.get_unique_donor_names()
+    return render_template('add_donation.html', donor_names=donor_names)
 
 @app.route('/donations/<int:donation_id>/use', methods=['GET', 'POST'])
 def use_donation(donation_id):

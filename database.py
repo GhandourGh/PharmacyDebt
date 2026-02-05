@@ -1489,6 +1489,18 @@ def get_customers_with_debt_by_date_range(start_date, end_date, customer_id=None
 
 # ============== DONATIONS OPERATIONS ==============
 
+def get_unique_donor_names():
+    """Get all unique donor names from donations"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT DISTINCT donor_name 
+            FROM donations 
+            WHERE donor_name IS NOT NULL AND donor_name != ''
+            ORDER BY donor_name
+        ''')
+        return [row[0] for row in cursor.fetchall()]
+
 def add_donation(amount, donor_name=None, notes=None):
     """Add a new donation"""
     with get_db() as conn:

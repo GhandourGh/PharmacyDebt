@@ -22,9 +22,28 @@
 
         <div class="form-group">
             <label class="form-label">Donor Name (optional)</label>
-            <input type="text" name="donor_name" class="form-control" placeholder="Who is making this donation?">
+            <div style="position: relative;">
+                <input type="text" 
+                       name="donor_name" 
+                       id="donor_name_input" 
+                       class="form-control" 
+                       placeholder="Who is making this donation?"
+                       autocomplete="off"
+                       list="donor_suggestions">
+                <datalist id="donor_suggestions">
+                    {% for donor_name in donor_names %}
+                    <option value="{{ donor_name }}">
+                    {% endfor %}
+                </datalist>
+                <button type="button" 
+                        id="donor_search_btn" 
+                        style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px;"
+                        title="Search previous donors">
+                    <i data-lucide="search" style="width: 18px; height: 18px; color: #64748b;"></i>
+                </button>
+            </div>
             <small style="color: #64748b; font-size: 0.875rem; margin-top: 0.25rem; display: block;">
-                Leave blank if anonymous
+                Start typing to see previous donors, or leave blank if anonymous
             </small>
         </div>
 
@@ -54,6 +73,11 @@
 {% block scripts %}
 <script>
     lucide.createIcons();
+    
+    // Focus search input when search button is clicked
+    document.getElementById('donor_search_btn')?.addEventListener('click', function() {
+        document.getElementById('donor_name_input').focus();
+    });
 </script>
 {% endblock %}
 
