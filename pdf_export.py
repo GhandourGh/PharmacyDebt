@@ -424,13 +424,17 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
                 debt_col = f"${amount:.2f}"
                 items_col = "-"
 
+            # Wrap notes in Paragraph for proper text wrapping
+            notes_text = entry.get('notes') or entry.get('description') or '-'
+            notes_col = Paragraph(notes_text, styles['Normal']) if notes_text != '-' else '-'
+
             data.append([
                 date_val,
                 type_str,
                 items_col,
                 debt_col,
                 payment_col,
-                entry.get('notes') or entry.get('description') or '-'
+                notes_col
             ])
 
         # Increased Items column width and adjusted others for better layout
@@ -453,6 +457,7 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.Color(0.98, 0.98, 0.98)]),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ('WORDWRAP', (2, 1), (2, -1), True),  # Enable word wrap for Items column
+            ('WORDWRAP', (5, 1), (5, -1), True),  # Enable word wrap for Notes column
         ]))
         elements.append(table)
     else:
