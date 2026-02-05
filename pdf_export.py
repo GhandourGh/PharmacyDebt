@@ -346,9 +346,9 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
 
     # Summary Section
     summary_data = [
-        ['Total Debts', f"${total_debts:.2f}"],
-        ['Total Payments', f"${total_payments:.2f}"],
-        ['Debt Left', f"${total_debt:.2f}"]
+        ['Total Debts', Paragraph(f"${total_debts:.2f}", styles['Normal'])],
+        ['Total Payments', Paragraph(f"<font color='green'>${total_payments:.2f}</font>", styles['Normal'])],
+        ['Debt Left', Paragraph(f"<font color='red'>${total_debt:.2f}</font>", styles['Normal'])]
     ]
     
     summary_table = Table(summary_data, colWidths=[6*cm, 6*cm])
