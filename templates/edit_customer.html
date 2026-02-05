@@ -17,7 +17,10 @@
             <div class="image-upload-container">
                 <div class="image-preview" id="imagePreview">
                     {% if customer.profile_image %}
-                    <img src="{{ url_for('static', filename='uploads/' + customer.profile_image) }}" alt="{{ customer.name }}" style="width: 100%; height: 100%; object-fit: cover;">
+                    <img src="{{ url_for('static', filename='uploads/' + customer.profile_image) }}" alt="{{ customer.name }}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div style="display: none; width: 100%; height: 100%; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <i data-lucide="user" style="width: 48px; height: 48px; color: white;"></i>
+                    </div>
                     {% else %}
                     <i data-lucide="user" style="width: 48px; height: 48px; color: #94a3b8;"></i>
                     {% endif %}
