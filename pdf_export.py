@@ -410,7 +410,9 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
                             item_list.append(f"{product_name} (x{quantity})")
                         else:
                             item_list.append(product_name)
-                    items_col = ", ".join(item_list)
+                    # Join items and wrap in Paragraph for proper text wrapping
+                    items_text = ", ".join(item_list)
+                    items_col = Paragraph(items_text, styles['Normal'])
                 else:
                     items_col = "-"
             elif entry_type == 'PAYMENT':
@@ -431,7 +433,8 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
                 entry.get('notes') or entry.get('description') or '-'
             ])
 
-        table = Table(data, colWidths=[2.5*cm, 2*cm, 5*cm, 2.5*cm, 2.5*cm, 3.5*cm])
+        # Increased Items column width and adjusted others for better layout
+        table = Table(data, colWidths=[2.5*cm, 2*cm, 7*cm, 2.5*cm, 2.5*cm, 3*cm])
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.17, 0.32, 0.51)),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -449,6 +452,7 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
             ('RIGHTPADDING', (0, 1), (-1, -1), 6),
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.Color(0.98, 0.98, 0.98)]),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('WORDWRAP', (2, 1), (2, -1), True),  # Enable word wrap for Items column
         ]))
         elements.append(table)
     else:
