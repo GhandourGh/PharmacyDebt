@@ -36,20 +36,20 @@
             
             <div style="padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
                 <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
-                    <i data-lucide="package" style="width: 24px; height: 24px; color: #22c55e;"></i>
+                    <i data-lucide="dollar-sign" style="width: 24px; height: 24px; color: #ef4444;"></i>
                     <div>
-                        <div style="font-size: 0.875rem; color: #64748b;">Total Products</div>
-                        <div style="font-size: 1.5rem; font-weight: 600; color: #1e293b;">{{ system_info.total_products }}</div>
+                        <div style="font-size: 0.875rem; color: #64748b;">Total Debt</div>
+                        <div style="font-size: 1.5rem; font-weight: 600; color: #1e293b;">${{ "%.2f"|format(system_info.total_debt) }}</div>
                     </div>
                 </div>
             </div>
             
             <div style="padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
                 <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
-                    <i data-lucide="dollar-sign" style="width: 24px; height: 24px; color: #ef4444;"></i>
+                    <i data-lucide="credit-card" style="width: 24px; height: 24px; color: #22c55e;"></i>
                     <div>
-                        <div style="font-size: 0.875rem; color: #64748b;">Total Debt</div>
-                        <div style="font-size: 1.5rem; font-weight: 600; color: #1e293b;">${{ "%.2f"|format(system_info.total_debt) }}</div>
+                        <div style="font-size: 0.875rem; color: #64748b;">Total Payments</div>
+                        <div style="font-size: 1.5rem; font-weight: 600; color: #1e293b;">${{ "%.2f"|format(system_info.total_payments) }}</div>
                     </div>
                 </div>
             </div>
@@ -64,16 +64,6 @@
                 </div>
                 <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.25rem;">
                     Available
-                </div>
-            </div>
-            
-            <div style="padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
-                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
-                    <i data-lucide="database" style="width: 24px; height: 24px; color: #8b5cf6;"></i>
-                    <div>
-                        <div style="font-size: 0.875rem; color: #64748b;">Database Size</div>
-                        <div style="font-size: 1.5rem; font-weight: 600; color: #1e293b;">{{ system_info.db_size }}</div>
-                    </div>
                 </div>
             </div>
         </div>

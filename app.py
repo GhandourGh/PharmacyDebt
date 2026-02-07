@@ -981,33 +981,29 @@ def settings():
     from datetime import datetime
     
     customers = db.get_all_customers()
-    products = db.get_all_products()
     total_debt = db.get_total_debt_all()
     total_donations = db.get_total_donations()
     total_donations_available = db.get_total_donations_available()
     
-    # Get database file size
-    db_size = 0
-    db_path = 'pharmacy.db'
-    if os.path.exists(db_path):
-        db_size = os.path.getsize(db_path)
-    
-    # Format file size
-    def format_size(size_bytes):
-        if size_bytes < 1024:
-            return f"{size_bytes} B"
-        elif size_bytes < 1024 * 1024:
-            return f"{size_bytes / 1024:.2f} KB"
-        else:
-            return f"{size_bytes / (1024 * 1024):.2f} MB"
+    # Calculate total payments
+    import database as db_module
+    with db_module.get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT COALESCE(SUM(amount), 0) as total
+            FROM ledger
+            WHERE entry_type = 'PAYMENT'
+            AND is_voided = 0
+            AND is_deleted = 0
+        ''')
+        total_payments = cursor.fetchone()['total']
     
     system_info = {
         'total_customers': len(customers),
-        'total_products': len(products),
         'total_debt': total_debt,
+        'total_payments': total_payments,
         'total_donations': total_donations,
         'total_donations_available': total_donations_available,
-        'db_size': format_size(db_size),
         'customers_with_debt': len([c for c in customers if db.get_customer_balance(c['id']) > 0])
     }
     
