@@ -31,14 +31,12 @@
             </div>
         </div>
 
-        <div class="form-group">
+        <div class="form-group" style="position: relative;">
             <label class="form-label">Name *</label>
-            <input type="text" name="name" id="customerName" class="form-control" required placeholder="Customer name" list="customerNamesList" autocomplete="off" onblur="validateName()" oninput="checkDuplicateName()">
-            <datalist id="customerNamesList">
-                {% for name in customer_names %}
-                <option value="{{ name }}">
-                {% endfor %}
-            </datalist>
+            <input type="text" name="name" id="customerName" class="form-control" required placeholder="Customer name" autocomplete="off" onblur="validateName()" oninput="showSuggestions()" onfocus="showSuggestions()">
+            <div id="suggestionsList" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); max-height: 200px; overflow-y: auto; z-index: 1000; margin-top: 4px;">
+                <!-- Suggestions will be inserted here -->
+            </div>
             <div class="error-message" id="nameError">
                 <i data-lucide="alert-circle" style="width: 12px; height: 12px;"></i>
                 <span></span>
@@ -131,11 +129,63 @@ function clearError(errorId, inputId) {
     if (inputEl) inputEl.classList.remove('input-error');
 }
 
+const customerNames = {{ customer_names|tojson }};
+
+function showSuggestions() {
+    const input = document.getElementById('customerName');
+    const value = input.value.trim().toLowerCase();
+    const suggestionsList = document.getElementById('suggestionsList');
+    const warningDiv = document.getElementById('duplicateWarning');
+    
+    // Clear previous suggestions
+    suggestionsList.innerHTML = '';
+    
+    if (value.length === 0) {
+        suggestionsList.style.display = 'none';
+        warningDiv.style.display = 'none';
+        input.style.borderColor = '';
+        return;
+    }
+    
+    // Filter customer names that match the input
+    const matches = customerNames.filter(name => 
+        name.toLowerCase().includes(value)
+    );
+    
+    if (matches.length === 0) {
+        suggestionsList.style.display = 'none';
+    } else {
+        suggestionsList.style.display = 'block';
+        
+        // Create list items for each match
+        matches.forEach(name => {
+            const item = document.createElement('div');
+            item.style.cssText = 'padding: 0.75rem 1rem; cursor: pointer; border-bottom: 1px solid #f1f5f9; transition: background-color 0.2s;';
+            item.textContent = name;
+            item.onmouseenter = function() {
+                this.style.backgroundColor = '#f8fafc';
+            };
+            item.onmouseleave = function() {
+                this.style.backgroundColor = 'white';
+            };
+            item.onclick = function() {
+                input.value = name;
+                suggestionsList.style.display = 'none';
+                checkDuplicateName();
+                validateName();
+            };
+            suggestionsList.appendChild(item);
+        });
+    }
+    
+    // Check for exact duplicate
+    checkDuplicateName();
+}
+
 function checkDuplicateName() {
     const input = document.getElementById('customerName');
     const value = input.value.trim();
     const warningDiv = document.getElementById('duplicateWarning');
-    const customerNames = {{ customer_names|tojson }};
     
     if (value && customerNames.length > 0) {
         // Check if the entered name matches an existing customer (case-insensitive)
@@ -155,6 +205,16 @@ function checkDuplicateName() {
     
     lucide.createIcons();
 }
+
+// Hide suggestions when clicking outside
+document.addEventListener('click', function(event) {
+    const input = document.getElementById('customerName');
+    const suggestionsList = document.getElementById('suggestionsList');
+    
+    if (!input.contains(event.target) && !suggestionsList.contains(event.target)) {
+        suggestionsList.style.display = 'none';
+    }
+});
 
 function validateName() {
     const input = document.getElementById('customerName');
