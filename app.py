@@ -10,6 +10,7 @@ from validators import (
     validate_file_type
 )
 import os
+import io
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'pharmacy-thabet-secret-key')
@@ -1012,6 +1013,60 @@ def settings():
     }
     
     return render_template('settings.html', settings=settings_dict)
+
+@app.route('/settings/export-backup')
+def export_backup():
+    """Export all data as CSV backup"""
+    try:
+        csv_data = db.export_all_data_to_csv()
+        filename = f'pharmacy_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        
+        response = send_file(
+            io.BytesIO(csv_data.encode('utf-8')),
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=filename
+        )
+        return response
+    except Exception as e:
+        flash(f'Error exporting backup: {str(e)}', 'error')
+        return redirect(url_for('settings'))
+
+@app.route('/settings/import-backup', methods=['POST'])
+def import_backup():
+    """Import data from CSV backup file"""
+    try:
+        if 'backup_file' not in request.files:
+            flash('No file selected.', 'error')
+            return redirect(url_for('settings'))
+        
+        file = request.files['backup_file']
+        if file.filename == '':
+            flash('No file selected.', 'error')
+            return redirect(url_for('settings'))
+        
+        if not file.filename.endswith('.csv'):
+            flash('Please upload a CSV file.', 'error')
+            return redirect(url_for('settings'))
+        
+        # Read file content
+        csv_content = file.read().decode('utf-8')
+        
+        # Import data
+        result = db.import_data_from_csv(csv_content)
+        
+        if result['success']:
+            imported = result['imported']
+            summary = f"Imported: {imported['customers']} customers, {imported['products']} products, {imported['donations']} donations"
+            flash(f'Backup restored successfully! {summary}', 'success')
+        else:
+            errors = result.get('errors', [])
+            flash(f'Import completed with errors: {"; ".join(errors)}', 'error')
+        
+        return redirect(url_for('settings'))
+    except Exception as e:
+        flash(f'Error importing backup: {str(e)}', 'error')
+        return redirect(url_for('settings'))
 
 if __name__ == '__main__':
     import sys

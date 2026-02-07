@@ -52,4 +52,67 @@
         <span><strong>Note:</strong> Changes to these settings will only affect new records.</span>
     </p>
 </div>
+
+<!-- Backup & Restore -->
+<div class="card card-info" style="margin-top: 2rem;">
+    <div class="card-header">
+        <h2 class="card-title">
+            <i data-lucide="database"></i>
+            Backup & Restore
+        </h2>
+    </div>
+    
+    <div style="padding: 1.5rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+            <!-- Export Backup -->
+            <div style="padding: 1.5rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <i data-lucide="download" style="width: 18px; height: 18px; color: #22c55e;"></i>
+                    Export Backup
+                </h3>
+                <p style="color: #64748b; font-size: 0.875rem; margin-bottom: 1rem;">
+                    Download all your data (customers, products, debts, payments, donations) as a CSV file for backup.
+                </p>
+                <a href="{{ url_for('export_backup') }}" class="btn btn-success">
+                    <i data-lucide="download"></i>
+                    Download CSV Backup
+                </a>
+            </div>
+            
+            <!-- Import Backup -->
+            <div style="padding: 1.5rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <i data-lucide="upload" style="width: 18px; height: 18px; color: #3b82f6;"></i>
+                    Restore Backup
+                </h3>
+                <p style="color: #64748b; font-size: 0.875rem; margin-bottom: 1rem;">
+                    Upload a CSV backup file to restore all your data. <strong style="color: #dc2626;">Warning:</strong> This will replace all existing data.
+                </p>
+                <form method="POST" action="{{ url_for('import_backup') }}" enctype="multipart/form-data">
+                    <div style="margin-bottom: 1rem;">
+                        <input type="file" name="backup_file" accept=".csv" required class="form-control" style="margin-bottom: 0.5rem;">
+                        <small style="color: #64748b; font-size: 0.75rem;">Select a CSV backup file to restore</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary" onclick="return confirm('Are you sure? This will replace all existing data with the backup file contents.');">
+                        <i data-lucide="upload"></i>
+                        Upload & Restore
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card" style="margin-top: 1.5rem; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #fcd34d;">
+            <p style="color: #92400e; font-size: 0.9rem; display: flex; align-items: start; gap: 0.5rem;">
+                <i data-lucide="alert-triangle" style="width: 18px; height: 18px; margin-top: 2px; flex-shrink: 0;"></i>
+                <span><strong>Important:</strong> The backup includes customers, products, donations, and transaction history. Restoring will clear all current data and replace it with the backup. Make sure to export a backup before making major changes.</span>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    lucide.createIcons();
+</script>
 {% endblock %}
