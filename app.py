@@ -1011,7 +1011,7 @@ def settings():
         'customers_with_debt': len([c for c in customers if db.get_customer_balance(c['id']) > 0])
     }
     
-    return render_template('settings.html', settings=settings_dict, system_info=system_info)
+    return render_template('settings.html', system_info=system_info)
 
 @app.route('/settings/export-backup')
 def export_backup():
