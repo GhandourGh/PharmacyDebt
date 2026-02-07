@@ -158,6 +158,15 @@
                         <span>Download Report</span>
                     </a>
                     <hr class="border-slate-700 my-1">
+                    <a href="{{ url_for('export_backup') }}" class="flex items-center gap-3 px-4 py-2.5 text-green-400 hover:text-green-300 hover:bg-green-950/20 transition-colors">
+                        <i data-lucide="database" style="width: 18px; height: 18px;"></i>
+                        <span>Export Backup</span>
+                    </a>
+                    <button onclick="openRestoreModal()" class="flex items-center gap-3 px-4 py-2.5 w-full text-left text-blue-400 hover:text-blue-300 hover:bg-blue-950/20 transition-colors">
+                        <i data-lucide="upload" style="width: 18px; height: 18px;"></i>
+                        <span>Restore Backup</span>
+                    </button>
+                    <hr class="border-slate-700 my-1">
                     <button onclick="toggleTheme()" class="flex items-center gap-3 px-4 py-2.5 w-full text-left text-slate-300 hover:text-white hover:bg-slate-800/50 transition-colors">
                         <i data-lucide="moon" id="themeIcon" style="width: 18px; height: 18px;"></i>
                         <span id="themeText">Dark Mode</span>
@@ -194,6 +203,15 @@
             <a href="{{ url_for('donations') }}" class="text-slate-300 hover:text-white py-2 transition no-underline {% if request.endpoint in ['donations', 'add_donation', 'use_donation'] %}text-white{% endif %}">
                 Donations
             </a>
+            <hr class="border-slate-700 my-2 w-full">
+            <a href="{{ url_for('export_backup') }}" class="text-green-400 hover:text-green-300 py-2 transition no-underline">
+                <i data-lucide="database" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 8px;"></i>
+                Export Backup
+            </a>
+            <button onclick="openRestoreModal()" class="text-blue-400 hover:text-blue-300 py-2 transition no-underline w-full text-left">
+                <i data-lucide="upload" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 8px;"></i>
+                Restore Backup
+            </button>
         </div>
     </div>
 
@@ -425,9 +443,84 @@
                 document.querySelectorAll('.profile-dropdown.show').forEach(d => d.classList.remove('show'));
             }
         });
+
+        // Restore backup modal
+        window.openRestoreModal = function() {
+            const modal = document.getElementById('restoreBackupModal');
+            if (modal) {
+                modal.classList.add('active');
+                // Close desktop menu
+                const dropdown = document.getElementById('desktopMenuDropdown');
+                if (dropdown) {
+                    dropdown.classList.add('hidden');
+                }
+                // Close mobile menu
+                const mobileMenu = document.getElementById('mobileMenu');
+                if (mobileMenu) {
+                    mobileMenu.classList.add('hidden');
+                    mobileMenu.classList.remove('flex');
+                }
+                lucide.createIcons();
+            }
+        };
+
+        window.closeRestoreModal = function() {
+            const modal = document.getElementById('restoreBackupModal');
+            if (modal) {
+                modal.classList.remove('active');
+            }
+        };
     </script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/preline@2/dist/preline.min.js"></script>
     {% block scripts %}{% endblock %}
+
+    <!-- Restore Backup Modal -->
+    <div id="restoreBackupModal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); z-index: 10000; align-items: center; justify-content: center;">
+        <div class="card" style="max-width: 500px; width: 90%; margin: 0; position: relative;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h2 class="card-title" style="margin: 0;">
+                    <i data-lucide="upload"></i>
+                    Restore Backup
+                </h2>
+                <button onclick="closeRestoreModal()" style="background: none; border: none; color: #64748b; cursor: pointer; padding: 4px;">
+                    <i data-lucide="x" style="width: 20px; height: 20px;"></i>
+                </button>
+            </div>
+            <div style="padding: 1.5rem;">
+                <p style="color: #64748b; font-size: 0.875rem; margin-bottom: 1rem;">
+                    Upload a CSV backup file to restore all your data. <strong style="color: #dc2626;">Warning:</strong> This will replace all existing data.
+                </p>
+                <form method="POST" action="{{ url_for('import_backup') }}" enctype="multipart/form-data" onsubmit="return confirm('Are you sure? This will replace all existing data with the backup file contents.');">
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Select Backup File</label>
+                        <input type="file" name="backup_file" accept=".csv" required class="form-control">
+                        <small style="color: #64748b; font-size: 0.75rem; margin-top: 0.25rem; display: block;">Select a CSV backup file to restore</small>
+                    </div>
+                    <div class="btn-group">
+                        <button type="submit" class="btn btn-primary">
+                            <i data-lucide="upload"></i>
+                            Upload & Restore
+                        </button>
+                        <button type="button" onclick="closeRestoreModal()" class="btn btn-secondary">
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+                <div class="card" style="margin-top: 1rem; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #fcd34d;">
+                    <p style="color: #92400e; font-size: 0.875rem; display: flex; align-items: start; gap: 0.5rem; margin: 0;">
+                        <i data-lucide="alert-triangle" style="width: 16px; height: 16px; margin-top: 2px; flex-shrink: 0;"></i>
+                        <span><strong>Important:</strong> Restoring will clear all current data and replace it with the backup. Make sure to export a backup before restoring.</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .modal-overlay.active {
+            display: flex !important;
+        }
+    </style>
 </body>
 </html>
