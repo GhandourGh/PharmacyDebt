@@ -1948,6 +1948,9 @@ def import_data_from_csv(csv_content):
                         ledger_items_to_import.append(row_dict)
             except Exception as e:
                 errors.append(f"Error importing {section_name}: {str(e)}")
+        
+        # Commit first pass (customers, products, donations) before importing ledger
+        conn.commit()
                         
         # Second pass: Import ledger entries (need customer IDs first)
         for section in sections:
