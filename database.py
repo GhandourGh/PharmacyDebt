@@ -1774,7 +1774,10 @@ def import_data_from_csv(csv_content):
         # Parse CSV content by sections
         sections = csv_content.split('=== ')
         id_mapping = {'customers': {}, 'products': {}, 'donations': {}}
+        ledger_id_mapping = {}
+        ledger_items_to_import = []
         
+        # First pass: Import customers, products, donations
         for section in sections:
             if not section.strip():
                 continue
@@ -1820,7 +1823,7 @@ def import_data_from_csv(csv_content):
                         ))
                         new_id = cursor.lastrowid
                         if old_id:
-                            id_mapping['customers'][old_id] = new_id
+                            id_mapping['customers'][str(old_id)] = new_id
                         imported['customers'] += 1
                         
                 elif section_name == 'PRODUCTS':
@@ -1841,7 +1844,7 @@ def import_data_from_csv(csv_content):
                         ))
                         new_id = cursor.lastrowid
                         if old_id:
-                            id_mapping['products'][old_id] = new_id
+                            id_mapping['products'][str(old_id)] = new_id
                         imported['products'] += 1
                         
                 elif section_name == 'DONATIONS':
@@ -1862,24 +1865,66 @@ def import_data_from_csv(csv_content):
                         ))
                         new_id = cursor.lastrowid
                         if old_id:
-                            id_mapping['donations'][old_id] = new_id
+                            id_mapping['donations'][str(old_id)] = new_id
                         imported['donations'] += 1
                         
-                elif section_name == 'LEDGER':
+                elif section_name == 'LEDGER_ITEMS':
+                    # Collect items to import after ledger is imported
+                    for row in data_rows:
+                        if len(row) != len(headers):
+                            continue
+                        row_dict = dict(zip(headers, row))
+                        ledger_items_to_import.append(row_dict)
+            except Exception as e:
+                errors.append(f"Error importing {section_name}: {str(e)}")
+                        
+        # Second pass: Import ledger entries (need customer IDs first)
+        for section in sections:
+            if not section.strip():
+                continue
+            lines = section.strip().split('\n')
+            if not lines:
+                continue
+            section_name = lines[0].replace(' ===', '').strip()
+            if len(lines) < 2:
+                continue
+            reader = csv.reader(lines[1:])
+            rows = list(reader)
+            if not rows:
+                continue
+            headers = rows[0]
+            data_rows = rows[1:]
+            
+            try:
+                if section_name == 'LEDGER':
+                    # First pass: collect all ledger entries with old IDs
+                    ledger_entries = []
                     for row in data_rows:
                         if len(row) != len(headers):
                             continue
                         row_dict = dict(zip(headers, row))
                         old_customer_id = row_dict.get('customer_id')
-                        # Map old customer ID to new ID
-                        new_customer_id = id_mapping['customers'].get(old_customer_id) if old_customer_id else None
+                        new_customer_id = id_mapping['customers'].get(str(old_customer_id)) if old_customer_id else None
                         if not new_customer_id:
-                            continue  # Skip if customer doesn't exist
+                            continue
+                        ledger_entries.append({
+                            'old_id': row_dict.get('id'),
+                            'row_dict': row_dict,
+                            'new_customer_id': new_customer_id
+                        })
+                    
+                    # Second pass: import and map ledger IDs
+                    for entry in ledger_entries:
+                        row_dict = entry['row_dict']
+                        old_ledger_id = entry['old_id']
+                        old_reference_id = row_dict.get('reference_id')
+                        new_reference_id = ledger_id_mapping.get(str(old_reference_id)) if old_reference_id else None
+                        
                         cursor.execute('''
                             INSERT INTO ledger (customer_id, entry_type, amount, balance_after, rx_number, description, notes, payment_method, reference_id, created_by, created_at, is_voided, voided_by, voided_at, void_reason, is_deleted, deleted_at)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ''', (
-                            new_customer_id,
+                            entry['new_customer_id'],
                             row_dict.get('entry_type'),
                             float(row_dict.get('amount', 0)) if row_dict.get('amount') else 0,
                             float(row_dict.get('balance_after')) if row_dict.get('balance_after') else None,
@@ -1887,7 +1932,7 @@ def import_data_from_csv(csv_content):
                             row_dict.get('description'),
                             row_dict.get('notes'),
                             row_dict.get('payment_method'),
-                            row_dict.get('reference_id'),
+                            new_reference_id,
                             row_dict.get('created_by'),
                             row_dict.get('created_at'),
                             int(row_dict.get('is_voided', 0)) if row_dict.get('is_voided') else 0,
@@ -1897,22 +1942,61 @@ def import_data_from_csv(csv_content):
                             int(row_dict.get('is_deleted', 0)) if row_dict.get('is_deleted') else 0,
                             row_dict.get('deleted_at')
                         ))
+                        new_ledger_id = cursor.lastrowid
+                        if old_ledger_id:
+                            ledger_id_mapping[str(old_ledger_id)] = new_ledger_id
                         imported['ledger'] += 1
+            except Exception as e:
+                errors.append(f"Error importing {section_name}: {str(e)}")
                         
-                elif section_name == 'LEDGER_ITEMS':
-                    # Ledger items will be imported but may need ledger ID mapping
-                    # For simplicity, we'll skip this for now as it requires complex ID mapping
-                    pass
-                    
-                elif section_name == 'DONATION_USAGE':
+        # Third pass: Import ledger items (after ledger entries are imported)
+        for item_dict in ledger_items_to_import:
+            old_ledger_id = item_dict.get('ledger_id')
+            new_ledger_id = ledger_id_mapping.get(str(old_ledger_id)) if old_ledger_id else None
+            if not new_ledger_id:
+                continue
+            try:
+                cursor.execute('''
+                    INSERT INTO ledger_items (ledger_id, product_name, price, quantity, rx_number)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (
+                    new_ledger_id,
+                    item_dict.get('product_name'),
+                    float(item_dict.get('price', 0)) if item_dict.get('price') else 0,
+                    int(item_dict.get('quantity', 1)) if item_dict.get('quantity') else 1,
+                    item_dict.get('rx_number')
+                ))
+                imported['ledger_items'] += 1
+            except Exception as e:
+                errors.append(f"Error importing ledger item: {str(e)}")
+        
+        # Fourth pass: Import donation usage (after donations and customers are imported)
+        for section in sections:
+            if not section.strip():
+                continue
+            lines = section.strip().split('\n')
+            if not lines:
+                continue
+            section_name = lines[0].replace(' ===', '').strip()
+            if len(lines) < 2:
+                continue
+            reader = csv.reader(lines[1:])
+            rows = list(reader)
+            if not rows:
+                continue
+            headers = rows[0]
+            data_rows = rows[1:]
+            
+            try:
+                if section_name == 'DONATION_USAGE':
                     for row in data_rows:
                         if len(row) != len(headers):
                             continue
                         row_dict = dict(zip(headers, row))
                         old_donation_id = row_dict.get('donation_id')
                         old_customer_id = row_dict.get('customer_id')
-                        new_donation_id = id_mapping['donations'].get(old_donation_id) if old_donation_id else None
-                        new_customer_id = id_mapping['customers'].get(old_customer_id) if old_customer_id else None
+                        new_donation_id = id_mapping['donations'].get(str(old_donation_id)) if old_donation_id else None
+                        new_customer_id = id_mapping['customers'].get(str(old_customer_id)) if old_customer_id else None
                         if not new_donation_id or not new_customer_id:
                             continue
                         cursor.execute('''
@@ -1926,10 +2010,131 @@ def import_data_from_csv(csv_content):
                             row_dict.get('created_at')
                         ))
                         imported['donation_usage'] += 1
-                        
             except Exception as e:
                 errors.append(f"Error importing {section_name}: {str(e)}")
         
         conn.commit()
     
     return {'success': len(errors) == 0, 'imported': imported, 'errors': errors}
+
+def create_demo_data():
+    """Create demo data for testing"""
+    import random
+    from datetime import datetime, timedelta
+    
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        # Clear existing data
+        cursor.execute('DELETE FROM donation_usage')
+        cursor.execute('DELETE FROM donations')
+        cursor.execute('DELETE FROM ledger_items')
+        cursor.execute('DELETE FROM ledger')
+        cursor.execute('DELETE FROM products')
+        cursor.execute('DELETE FROM customers')
+        conn.commit()
+        
+        # Add products
+        products_data = [
+            ("Paracetamol 500mg", 5.00, "Pain Relief", 0),
+            ("Ibuprofen 400mg", 8.50, "Pain Relief", 0),
+            ("Amoxicillin 500mg", 12.00, "Antibiotics", 1),
+            ("Vitamin D3 1000IU", 15.00, "Vitamins", 0),
+            ("Cough Syrup", 10.00, "Respiratory", 0),
+        ]
+        product_ids = []
+        for name, price, category, is_prescription in products_data:
+            cursor.execute('''
+                INSERT INTO products (name, price, category, is_prescription, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (name, price, category, is_prescription, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+            product_ids.append(cursor.lastrowid)
+        
+        # Add customers
+        customers_data = [
+            ("Ahmad Ghandour", "+961 03 441 339", "ahmad@example.com", "Beirut", 1000.00, "Regular customer"),
+            ("Mariam Khoury", "+961 70 123 456", None, "Tripoli", 500.00, None),
+            ("George Saad", "+961 71 789 012", "george@example.com", None, 750.00, "Family discount"),
+            ("Layla Fadel", "+961 76 345 678", None, "Sidon", 600.00, None),
+        ]
+        customer_ids = []
+        for name, phone, email, address, credit_limit, notes in customers_data:
+            cursor.execute('''
+                INSERT INTO customers (name, phone, email, address, credit_limit, grace_period_days, is_active, notes, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (name, phone, email, address, credit_limit, 7, 1, notes, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+            customer_ids.append(cursor.lastrowid)
+        
+        # Add debts for customers
+        for i, customer_id in enumerate(customer_ids):
+            # Each customer gets 1-3 debt transactions
+            num_debts = random.randint(1, 3)
+            for j in range(num_debts):
+                days_ago = random.randint(0, 30)
+                debt_date = (datetime.now() - timedelta(days=days_ago)).strftime('%Y-%m-%d')
+                
+                # Create debt with items
+                items = []
+                num_items = random.randint(1, 3)
+                for _ in range(num_items):
+                    product_idx = random.randint(0, len(product_ids) - 1)
+                    product = products_data[product_idx]
+                    quantity = random.randint(1, 2)
+                    items.append({
+                        'product_name': product[0],
+                        'price': product[1],
+                        'quantity': quantity
+                    })
+                
+                # Calculate total
+                total = sum(item['price'] * item['quantity'] for item in items)
+                
+                # Get current balance
+                cursor.execute('''
+                    SELECT COALESCE(SUM(
+                        CASE
+                            WHEN entry_type IN ('NEW_DEBT', 'ADJUSTMENT') THEN amount
+                            WHEN entry_type IN ('PAYMENT', 'WRITE_OFF', 'REFUND') THEN -amount
+                            ELSE 0
+                        END
+                    ), 0) as balance
+                    FROM ledger WHERE customer_id = ?
+                ''', (customer_id,))
+                current_balance = cursor.fetchone()['balance']
+                new_balance = current_balance + total
+                
+                # Insert ledger entry
+                cursor.execute('''
+                    INSERT INTO ledger (customer_id, entry_type, amount, balance_after, notes, created_at)
+                    VALUES (?, 'NEW_DEBT', ?, ?, ?, ?)
+                ''', (customer_id, total, new_balance, f"Debt transaction {j+1}", debt_date + " 10:00:00"))
+                ledger_id = cursor.lastrowid
+                
+                # Insert ledger items
+                for item in items:
+                    cursor.execute('''
+                        INSERT INTO ledger_items (ledger_id, product_name, price, quantity)
+                        VALUES (?, ?, ?, ?)
+                    ''', (ledger_id, item['product_name'], item['price'], item['quantity']))
+                
+                # Some customers make payments
+                if random.random() < 0.5 and new_balance > 0:
+                    payment_amount = min(random.uniform(10, new_balance * 0.5), new_balance)
+                    payment_method = random.choice(['CASH', 'CARD', 'CHECK'])
+                    payment_date = (datetime.now() - timedelta(days=random.randint(0, days_ago))).strftime('%Y-%m-%d %H:%M:%S')
+                    
+                    new_balance_after = new_balance - payment_amount
+                    cursor.execute('''
+                        INSERT INTO ledger (customer_id, entry_type, amount, balance_after, payment_method, notes, created_at)
+                        VALUES (?, 'PAYMENT', ?, ?, ?, ?, ?)
+                    ''', (customer_id, payment_amount, new_balance_after, payment_method, f"{payment_method} payment", payment_date))
+        
+        # Add a donation
+        cursor.execute('''
+            INSERT INTO donations (amount, donor_name, notes, is_active, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (500.00, "Anonymous Donor", "Community support", 1, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+        
+        conn.commit()
+    
+    return True

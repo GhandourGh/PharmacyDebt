@@ -1068,6 +1068,16 @@ def import_backup():
         flash(f'Error importing backup: {str(e)}', 'error')
         return redirect(url_for('settings'))
 
+@app.route('/admin/create-demo-data', methods=['POST'])
+def create_demo_data():
+    """Create demo data for testing"""
+    try:
+        db.create_demo_data()
+        flash('Demo data created successfully!', 'success')
+    except Exception as e:
+        flash(f'Error creating demo data: {str(e)}', 'error')
+    return redirect(url_for('dashboard'))
+
 if __name__ == '__main__':
     import sys
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 5001
