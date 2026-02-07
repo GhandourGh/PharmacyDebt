@@ -10,6 +10,76 @@
     </h1>
 </div>
 
+<!-- System Information -->
+<div class="card card-info" style="margin-bottom: 2rem;">
+    <div class="card-header">
+        <h2 class="card-title">
+            <i data-lucide="info"></i>
+            System Information
+        </h2>
+    </div>
+    
+    <div style="padding: 1.5rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+            <div style="padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                    <i data-lucide="users" style="width: 24px; height: 24px; color: #3b82f6;"></i>
+                    <div>
+                        <div style="font-size: 0.875rem; color: #64748b;">Total Customers</div>
+                        <div style="font-size: 1.5rem; font-weight: 600; color: #1e293b;">{{ system_info.total_customers }}</div>
+                    </div>
+                </div>
+                <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.25rem;">
+                    {{ system_info.customers_with_debt }} with outstanding debt
+                </div>
+            </div>
+            
+            <div style="padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                    <i data-lucide="package" style="width: 24px; height: 24px; color: #22c55e;"></i>
+                    <div>
+                        <div style="font-size: 0.875rem; color: #64748b;">Total Products</div>
+                        <div style="font-size: 1.5rem; font-weight: 600; color: #1e293b;">{{ system_info.total_products }}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                    <i data-lucide="dollar-sign" style="width: 24px; height: 24px; color: #ef4444;"></i>
+                    <div>
+                        <div style="font-size: 0.875rem; color: #64748b;">Total Debt</div>
+                        <div style="font-size: 1.5rem; font-weight: 600; color: #1e293b;">${{ "%.2f"|format(system_info.total_debt) }}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                    <i data-lucide="heart-handshake" style="width: 24px; height: 24px; color: #f59e0b;"></i>
+                    <div>
+                        <div style="font-size: 0.875rem; color: #64748b;">Donations</div>
+                        <div style="font-size: 1.5rem; font-weight: 600; color: #1e293b;">${{ "%.2f"|format(system_info.total_donations_available) }}</div>
+                    </div>
+                </div>
+                <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.25rem;">
+                    Available
+                </div>
+            </div>
+            
+            <div style="padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                    <i data-lucide="database" style="width: 24px; height: 24px; color: #8b5cf6;"></i>
+                    <div>
+                        <div style="font-size: 0.875rem; color: #64748b;">Database Size</div>
+                        <div style="font-size: 1.5rem; font-weight: 600; color: #1e293b;">{{ system_info.db_size }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="card card-info">
     <div class="card-header">
         <h2 class="card-title">
@@ -106,6 +176,99 @@
                 <i data-lucide="alert-triangle" style="width: 18px; height: 18px; margin-top: 2px; flex-shrink: 0;"></i>
                 <span><strong>Important:</strong> The backup includes customers, products, donations, and transaction history. Restoring will clear all current data and replace it with the backup. Make sure to export a backup before making major changes.</span>
             </p>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Links -->
+<div class="card card-info" style="margin-top: 2rem;">
+    <div class="card-header">
+        <h2 class="card-title">
+            <i data-lucide="link"></i>
+            Quick Links
+        </h2>
+    </div>
+    
+    <div style="padding: 1.5rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+            <a href="{{ url_for('customers') }}" class="btn btn-secondary" style="text-align: left; justify-content: flex-start;">
+                <i data-lucide="users"></i>
+                View All Customers
+            </a>
+            <a href="{{ url_for('products') }}" class="btn btn-secondary" style="text-align: left; justify-content: flex-start;">
+                <i data-lucide="package"></i>
+                Manage Products
+            </a>
+            <a href="{{ url_for('reports') }}" class="btn btn-secondary" style="text-align: left; justify-content: flex-start;">
+                <i data-lucide="file-text"></i>
+                View Reports
+            </a>
+            <a href="{{ url_for('donations') }}" class="btn btn-secondary" style="text-align: left; justify-content: flex-start;">
+                <i data-lucide="heart-handshake"></i>
+                Manage Donations
+            </a>
+            <a href="{{ url_for('analytics') }}" class="btn btn-secondary" style="text-align: left; justify-content: flex-start;">
+                <i data-lucide="trending-up"></i>
+                View Analytics
+            </a>
+            <a href="{{ url_for('download_all_debts_pdf') }}" class="btn btn-secondary" style="text-align: left; justify-content: flex-start;">
+                <i data-lucide="download"></i>
+                Download Report
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Help & Tips -->
+<div class="card card-info" style="margin-top: 2rem;">
+    <div class="card-header">
+        <h2 class="card-title">
+            <i data-lucide="help-circle"></i>
+            Help & Tips
+        </h2>
+    </div>
+    
+    <div style="padding: 1.5rem;">
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+            <div style="padding: 1rem; background: #f8fafc; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <i data-lucide="info" style="width: 16px; height: 16px; color: #3b82f6;"></i>
+                    Regular Backups
+                </h3>
+                <p style="font-size: 0.875rem; color: #64748b; margin: 0;">
+                    Export a backup regularly (weekly or monthly) to protect your data. Store backups in a safe location.
+                </p>
+            </div>
+            
+            <div style="padding: 1rem; background: #f8fafc; border-radius: 8px; border-left: 4px solid #22c55e;">
+                <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <i data-lucide="check-circle" style="width: 16px; height: 16px; color: #22c55e;"></i>
+                    Grace Period
+                </h3>
+                <p style="font-size: 0.875rem; color: #64748b; margin: 0;">
+                    The grace period is the number of days before a debt is considered past due. This only affects new records.
+                </p>
+            </div>
+            
+            <div style="padding: 1rem; background: #f8fafc; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <i data-lucide="lightbulb" style="width: 16px; height: 16px; color: #f59e0b;"></i>
+                    Search Features
+                </h3>
+                <p style="font-size: 0.875rem; color: #64748b; margin: 0;">
+                    Use the search functionality to quickly find customers by name, phone, or notes. Search works across all pages.
+                </p>
+            </div>
+            
+            <div style="padding: 1rem; background: #f8fafc; border-radius: 8px; border-left: 4px solid #8b5cf6;">
+                <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <i data-lucide="file-text" style="width: 16px; height: 16px; color: #8b5cf6;"></i>
+                    Reports & Analytics
+                </h3>
+                <p style="font-size: 0.875rem; color: #64748b; margin: 0;">
+                    Generate detailed reports and view analytics to track your business performance and customer payment trends.
+                </p>
+            </div>
         </div>
     </div>
 </div>

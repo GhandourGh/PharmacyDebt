@@ -1012,7 +1012,42 @@ def settings():
         'overdue_threshold_days': db.get_setting('overdue_threshold_days') or '30'
     }
     
-    return render_template('settings.html', settings=settings_dict)
+    # Get system statistics
+    import os
+    from datetime import datetime
+    
+    customers = db.get_all_customers()
+    products = db.get_all_products()
+    total_debt = db.get_total_debt_all()
+    total_donations = db.get_total_donations()
+    total_donations_available = db.get_total_donations_available()
+    
+    # Get database file size
+    db_size = 0
+    db_path = 'pharmacy.db'
+    if os.path.exists(db_path):
+        db_size = os.path.getsize(db_path)
+    
+    # Format file size
+    def format_size(size_bytes):
+        if size_bytes < 1024:
+            return f"{size_bytes} B"
+        elif size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.2f} KB"
+        else:
+            return f"{size_bytes / (1024 * 1024):.2f} MB"
+    
+    system_info = {
+        'total_customers': len(customers),
+        'total_products': len(products),
+        'total_debt': total_debt,
+        'total_donations': total_donations,
+        'total_donations_available': total_donations_available,
+        'db_size': format_size(db_size),
+        'customers_with_debt': len([c for c in customers if db.get_customer_balance(c['id']) > 0])
+    }
+    
+    return render_template('settings.html', settings=settings_dict, system_info=system_info)
 
 @app.route('/settings/export-backup')
 def export_backup():
