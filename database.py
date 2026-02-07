@@ -2023,6 +2023,31 @@ def import_data_from_csv(csv_content):
                                 except (ValueError, TypeError):
                                     pass
                         
+                        # Check and set created_by/voided_by to NULL if user doesn't exist
+                        created_by = row_dict.get('created_by')
+                        if created_by and str(created_by).strip() and str(created_by).lower() not in ['', 'none', 'null']:
+                            try:
+                                created_by_int = int(float(created_by))
+                                cursor.execute('SELECT id FROM users WHERE id = ?', (created_by_int,))
+                                if not cursor.fetchone():
+                                    created_by = None
+                            except (ValueError, TypeError):
+                                created_by = None
+                        else:
+                            created_by = None
+                        
+                        voided_by = row_dict.get('voided_by')
+                        if voided_by and str(voided_by).strip() and str(voided_by).lower() not in ['', 'none', 'null']:
+                            try:
+                                voided_by_int = int(float(voided_by))
+                                cursor.execute('SELECT id FROM users WHERE id = ?', (voided_by_int,))
+                                if not cursor.fetchone():
+                                    voided_by = None
+                            except (ValueError, TypeError):
+                                voided_by = None
+                        else:
+                            voided_by = None
+                        
                         try:
                             cursor.execute('''
                                 INSERT INTO ledger (customer_id, entry_type, amount, balance_after, rx_number, description, notes, payment_method, reference_id, created_by, created_at, is_voided, voided_by, voided_at, void_reason, is_deleted, deleted_at)
@@ -2037,10 +2062,10 @@ def import_data_from_csv(csv_content):
                                 row_dict.get('notes'),
                                 row_dict.get('payment_method'),
                                 new_reference_id,
-                                row_dict.get('created_by'),
+                                created_by,
                                 row_dict.get('created_at'),
                                 int(row_dict.get('is_voided', 0)) if row_dict.get('is_voided') and str(row_dict.get('is_voided')).strip() and str(row_dict.get('is_voided')).lower() not in ['', 'none', 'null', '0', 'false'] else 0,
-                                row_dict.get('voided_by'),
+                                voided_by,
                                 row_dict.get('voided_at'),
                                 row_dict.get('void_reason'),
                                 int(row_dict.get('is_deleted', 0)) if row_dict.get('is_deleted') and str(row_dict.get('is_deleted')).strip() and str(row_dict.get('is_deleted')).lower() not in ['', 'none', 'null', '0', 'false'] else 0,
