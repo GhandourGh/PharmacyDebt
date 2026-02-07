@@ -986,8 +986,7 @@ def settings():
     total_donations_available = db.get_total_donations_available()
     
     # Calculate total payments
-    import database as db_module
-    with db_module.get_db() as conn:
+    with db.get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
             SELECT COALESCE(SUM(amount), 0) as total
