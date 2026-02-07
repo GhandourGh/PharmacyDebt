@@ -974,44 +974,8 @@ def use_donation(donation_id):
 
 # ============== SETTINGS ==============
 
-@app.route('/settings', methods=['GET', 'POST'])
+@app.route('/settings', methods=['GET'])
 def settings():
-    if request.method == 'POST':
-        try:
-            # Get form values
-            default_grace_period = request.form.get('default_grace_period', '7')
-            overdue_threshold_days = request.form.get('overdue_threshold_days', '30')
-            
-            # Validate and save settings
-            try:
-                default_grace_period_int = int(default_grace_period)
-                overdue_threshold_days_int = int(overdue_threshold_days)
-                
-                if default_grace_period_int < 0:
-                    raise ValidationError('Default grace period cannot be negative')
-                if overdue_threshold_days_int < 1:
-                    raise ValidationError('Overdue threshold must be at least 1 day')
-                
-                db.set_setting('default_grace_period', str(default_grace_period_int))
-                db.set_setting('overdue_threshold_days', str(overdue_threshold_days_int))
-                
-                flash('Settings saved successfully.', 'success')
-            except ValueError:
-                flash('Invalid input. Please enter valid numbers.', 'error')
-            except ValidationError as e:
-                flash(e.message, 'error')
-            
-            return redirect(url_for('settings'))
-        except Exception as e:
-            flash(f'An unexpected error occurred: {str(e)}', 'error')
-            return redirect(url_for('settings'))
-    
-    # Load settings from database
-    settings_dict = {
-        'default_grace_period': db.get_setting('default_grace_period') or '7',
-        'overdue_threshold_days': db.get_setting('overdue_threshold_days') or '30'
-    }
-    
     # Get system statistics
     import os
     from datetime import datetime

@@ -80,49 +80,6 @@
     </div>
 </div>
 
-<div class="card card-info">
-    <div class="card-header">
-        <h2 class="card-title">
-            <i data-lucide="sliders"></i>
-            Default Values
-        </h2>
-    </div>
-
-    <form method="POST">
-        <div class="form-group">
-            <label class="form-label">
-                <i data-lucide="calendar" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"></i>
-                Default Grace Period (days)
-            </label>
-            <input type="number" name="default_grace_period" class="form-control" min="0" value="{{ settings.default_grace_period }}">
-            <small style="color: #64748b;">Days before debt is considered past due</small>
-        </div>
-
-        <div class="form-group">
-            <label class="form-label">
-                <i data-lucide="alert-triangle" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"></i>
-                Overdue Threshold (days)
-            </label>
-            <input type="number" name="overdue_threshold_days" class="form-control" min="1" value="{{ settings.overdue_threshold_days }}">
-            <small style="color: #64748b;">Days after which debt appears in overdue reports</small>
-        </div>
-
-        <div class="btn-group">
-            <button type="submit" class="btn btn-primary">
-                <i data-lucide="save"></i>
-                Save Settings
-            </button>
-        </div>
-    </form>
-</div>
-
-<div class="card" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #bfdbfe;">
-    <p style="color: #1e40af; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem;">
-        <i data-lucide="info" style="width: 18px; height: 18px;"></i>
-        <span><strong>Note:</strong> Changes to these settings will only affect new records.</span>
-    </p>
-</div>
-
 <!-- Backup & Restore -->
 <div class="card card-info" style="margin-top: 2rem;">
     <div class="card-header">
@@ -242,21 +199,21 @@
             
             <div style="padding: 1rem; background: #f8fafc; border-radius: 8px; border-left: 4px solid #22c55e;">
                 <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                    <i data-lucide="check-circle" style="width: 16px; height: 16px; color: #22c55e;"></i>
-                    Grace Period
+                    <i data-lucide="search" style="width: 16px; height: 16px; color: #22c55e;"></i>
+                    Search Features
                 </h3>
                 <p style="font-size: 0.875rem; color: #64748b; margin: 0;">
-                    The grace period is the number of days before a debt is considered past due. This only affects new records.
+                    Use the search functionality to quickly find customers by name, phone, or notes. Enable "Note Search" on the customers page to search within customer notes as well.
                 </p>
             </div>
             
             <div style="padding: 1rem; background: #f8fafc; border-radius: 8px; border-left: 4px solid #f59e0b;">
                 <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                    <i data-lucide="lightbulb" style="width: 16px; height: 16px; color: #f59e0b;"></i>
-                    Search Features
+                    <i data-lucide="heart-handshake" style="width: 16px; height: 16px; color: #f59e0b;"></i>
+                    Donations
                 </h3>
                 <p style="font-size: 0.875rem; color: #64748b; margin: 0;">
-                    Use the search functionality to quickly find customers by name, phone, or notes. Search works across all pages.
+                    Track donations and apply them to customer debts. Search for donors by name when adding donations, and search for customers when applying donations.
                 </p>
             </div>
             
@@ -266,7 +223,17 @@
                     Reports & Analytics
                 </h3>
                 <p style="font-size: 0.875rem; color: #64748b; margin: 0;">
-                    Generate detailed reports and view analytics to track your business performance and customer payment trends.
+                    Generate detailed PDF reports and view analytics to track your business performance, customer payment trends, and debt aging.
+                </p>
+            </div>
+            
+            <div style="padding: 1rem; background: #f8fafc; border-radius: 8px; border-left: 4px solid #ef4444;">
+                <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <i data-lucide="shield-alert" style="width: 16px; height: 16px; color: #ef4444;"></i>
+                    Data Protection
+                </h3>
+                <p style="font-size: 0.875rem; color: #64748b; margin: 0;">
+                    Always export a backup before making major changes or restoring data. The backup includes all customers, products, debts, payments, and donations.
                 </p>
             </div>
         </div>
