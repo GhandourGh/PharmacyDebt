@@ -1680,10 +1680,43 @@ def export_all_data_to_csv():
     with get_db() as conn:
         cursor = conn.cursor()
         
-        # Export Customers
+        # Export Customers with calculated financial data
         output.write("=== CUSTOMERS ===\n")
         writer = csv.writer(output)
-        cursor.execute('SELECT * FROM customers WHERE is_active = 1')
+        cursor.execute('''
+            SELECT c.*,
+                COALESCE((
+                    SELECT SUM(
+                        CASE
+                            WHEN entry_type IN ('NEW_DEBT', 'ADJUSTMENT') THEN amount
+                            WHEN entry_type IN ('PAYMENT', 'WRITE_OFF', 'REFUND') THEN -amount
+                            ELSE 0
+                        END
+                    ) FROM ledger WHERE customer_id = c.id AND is_voided = 0 AND is_deleted = 0
+                ), 0) as current_balance,
+                COALESCE((
+                    SELECT SUM(amount) FROM ledger 
+                    WHERE customer_id = c.id AND entry_type = 'NEW_DEBT' AND is_voided = 0 AND is_deleted = 0
+                ), 0) as total_debt_added,
+                COALESCE((
+                    SELECT SUM(amount) FROM ledger 
+                    WHERE customer_id = c.id AND entry_type = 'PAYMENT' AND is_voided = 0 AND is_deleted = 0
+                ), 0) as total_paid,
+                COALESCE((
+                    SELECT SUM(amount) FROM ledger 
+                    WHERE customer_id = c.id AND entry_type = 'ADJUSTMENT' AND is_voided = 0 AND is_deleted = 0
+                ), 0) as total_adjustments,
+                COALESCE((
+                    SELECT COUNT(*) FROM ledger 
+                    WHERE customer_id = c.id AND entry_type = 'NEW_DEBT' AND is_voided = 0 AND is_deleted = 0
+                ), 0) as total_debt_transactions,
+                COALESCE((
+                    SELECT COUNT(*) FROM ledger 
+                    WHERE customer_id = c.id AND entry_type = 'PAYMENT' AND is_voided = 0 AND is_deleted = 0
+                ), 0) as total_payment_transactions
+            FROM customers c
+            WHERE c.is_active = 1
+        ''')
         customers = [dict(row) for row in cursor.fetchall()]
         if customers:
             writer.writerow(customers[0].keys())
@@ -1701,14 +1734,52 @@ def export_all_data_to_csv():
                 writer.writerow(product.values())
         output.write("\n")
         
-        # Export Ledger
+        # Export Ledger (all entries including voided/deleted for complete history)
         output.write("=== LEDGER ===\n")
-        cursor.execute('SELECT * FROM ledger WHERE is_voided = 0 AND is_deleted = 0')
+        cursor.execute('SELECT * FROM ledger ORDER BY created_at')
         ledger = [dict(row) for row in cursor.fetchall()]
         if ledger:
             writer.writerow(ledger[0].keys())
             for entry in ledger:
                 writer.writerow(entry.values())
+        output.write("\n")
+        
+        # Export Ledger Summary (calculated totals by customer)
+        output.write("=== LEDGER_SUMMARY ===\n")
+        cursor.execute('''
+            SELECT 
+                c.id as customer_id,
+                c.name as customer_name,
+                c.phone as customer_phone,
+                COALESCE(SUM(
+                    CASE
+                        WHEN l.entry_type IN ('NEW_DEBT', 'ADJUSTMENT') AND l.is_voided = 0 AND l.is_deleted = 0 THEN l.amount
+                        WHEN l.entry_type IN ('PAYMENT', 'WRITE_OFF', 'REFUND') AND l.is_voided = 0 AND l.is_deleted = 0 THEN -l.amount
+                        ELSE 0
+                    END
+                ), 0) as current_balance,
+                COALESCE(SUM(CASE WHEN l.entry_type = 'NEW_DEBT' AND l.is_voided = 0 AND l.is_deleted = 0 THEN l.amount ELSE 0 END), 0) as total_debt_added,
+                COALESCE(SUM(CASE WHEN l.entry_type = 'PAYMENT' AND l.is_voided = 0 AND l.is_deleted = 0 THEN l.amount ELSE 0 END), 0) as total_paid,
+                COALESCE(SUM(CASE WHEN l.entry_type = 'ADJUSTMENT' AND l.is_voided = 0 AND l.is_deleted = 0 THEN l.amount ELSE 0 END), 0) as total_adjustments,
+                COALESCE(SUM(CASE WHEN l.entry_type = 'WRITE_OFF' AND l.is_voided = 0 AND l.is_deleted = 0 THEN l.amount ELSE 0 END), 0) as total_write_offs,
+                COALESCE(SUM(CASE WHEN l.entry_type = 'REFUND' AND l.is_voided = 0 AND l.is_deleted = 0 THEN l.amount ELSE 0 END), 0) as total_refunds,
+                COUNT(CASE WHEN l.entry_type = 'NEW_DEBT' AND l.is_voided = 0 AND l.is_deleted = 0 THEN 1 END) as debt_count,
+                COUNT(CASE WHEN l.entry_type = 'PAYMENT' AND l.is_voided = 0 AND l.is_deleted = 0 THEN 1 END) as payment_count,
+                MIN(CASE WHEN l.entry_type = 'NEW_DEBT' AND l.is_voided = 0 AND l.is_deleted = 0 THEN l.created_at END) as first_debt_date,
+                MAX(CASE WHEN l.entry_type = 'NEW_DEBT' AND l.is_voided = 0 AND l.is_deleted = 0 THEN l.created_at END) as last_debt_date,
+                MAX(CASE WHEN l.entry_type = 'PAYMENT' AND l.is_voided = 0 AND l.is_deleted = 0 THEN l.created_at END) as last_payment_date
+            FROM customers c
+            LEFT JOIN ledger l ON c.id = l.customer_id
+            WHERE c.is_active = 1
+            GROUP BY c.id, c.name, c.phone
+            HAVING COUNT(l.id) > 0
+            ORDER BY c.name
+        ''')
+        summary = [dict(row) for row in cursor.fetchall()]
+        if summary:
+            writer.writerow(summary[0].keys())
+            for row in summary:
+                writer.writerow(row.values())
         output.write("\n")
         
         # Export Ledger Items
