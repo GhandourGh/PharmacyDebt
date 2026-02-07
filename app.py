@@ -246,7 +246,11 @@ def add_customer():
             customer_names = [c['name'] for c in existing_customers if c.get('name')]
             return render_template('add_customer.html', customer_names=customer_names)
 
-    return render_template('add_customer.html')
+    # Get existing customer names for autocomplete
+    existing_customers = db.get_all_customers()
+    customer_names = [c['name'] for c in existing_customers if c.get('name')]
+    
+    return render_template('add_customer.html', customer_names=customer_names)
 
 @app.route('/customers/<int:customer_id>')
 def customer_detail(customer_id):
