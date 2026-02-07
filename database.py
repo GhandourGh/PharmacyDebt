@@ -2007,9 +2007,15 @@ def import_data_from_csv(csv_content):
                         old_ledger_id = entry['old_id']
                         old_reference_id = row_dict.get('reference_id')
                         
+                        # Verify customer exists before inserting
+                        cursor.execute('SELECT id FROM customers WHERE id = ?', (entry['new_customer_id'],))
+                        if not cursor.fetchone():
+                            errors.append(f"Customer {entry['new_customer_id']} does not exist for ledger entry {old_ledger_id}")
+                            continue
+                        
                         # Map reference_id if it exists
                         new_reference_id = None
-                        if old_reference_id:
+                        if old_reference_id and str(old_reference_id).strip() and str(old_reference_id).lower() not in ['', 'none', 'null']:
                             new_reference_id = ledger_id_mapping.get(str(old_reference_id))
                             if not new_reference_id:
                                 try:
@@ -2024,8 +2030,8 @@ def import_data_from_csv(csv_content):
                             ''', (
                                 entry['new_customer_id'],
                                 row_dict.get('entry_type'),
-                                float(row_dict.get('amount', 0)) if row_dict.get('amount') else 0,
-                                float(row_dict.get('balance_after')) if row_dict.get('balance_after') and str(row_dict.get('balance_after')).strip() else None,
+                                float(row_dict.get('amount', 0)) if row_dict.get('amount') and str(row_dict.get('amount')).strip() else 0,
+                                float(row_dict.get('balance_after')) if row_dict.get('balance_after') and str(row_dict.get('balance_after')).strip() and str(row_dict.get('balance_after')).lower() not in ['', 'none', 'null'] else None,
                                 row_dict.get('rx_number'),
                                 row_dict.get('description'),
                                 row_dict.get('notes'),
@@ -2033,11 +2039,11 @@ def import_data_from_csv(csv_content):
                                 new_reference_id,
                                 row_dict.get('created_by'),
                                 row_dict.get('created_at'),
-                                int(row_dict.get('is_voided', 0)) if row_dict.get('is_voided') and str(row_dict.get('is_voided')).strip() else 0,
+                                int(row_dict.get('is_voided', 0)) if row_dict.get('is_voided') and str(row_dict.get('is_voided')).strip() and str(row_dict.get('is_voided')).lower() not in ['', 'none', 'null', '0', 'false'] else 0,
                                 row_dict.get('voided_by'),
                                 row_dict.get('voided_at'),
                                 row_dict.get('void_reason'),
-                                int(row_dict.get('is_deleted', 0)) if row_dict.get('is_deleted') and str(row_dict.get('is_deleted')).strip() else 0,
+                                int(row_dict.get('is_deleted', 0)) if row_dict.get('is_deleted') and str(row_dict.get('is_deleted')).strip() and str(row_dict.get('is_deleted')).lower() not in ['', 'none', 'null', '0', 'false'] else 0,
                                 row_dict.get('deleted_at')
                             ))
                             new_ledger_id = cursor.lastrowid
