@@ -33,10 +33,19 @@
 
         <div class="form-group">
             <label class="form-label">Name *</label>
-            <input type="text" name="name" id="customerName" class="form-control" required placeholder="Customer name" onblur="validateName()">
+            <input type="text" name="name" id="customerName" class="form-control" required placeholder="Customer name" list="customerNamesList" autocomplete="off" onblur="validateName()" oninput="checkDuplicateName()">
+            <datalist id="customerNamesList">
+                {% for name in customer_names %}
+                <option value="{{ name }}">
+                {% endfor %}
+            </datalist>
             <div class="error-message" id="nameError">
                 <i data-lucide="alert-circle" style="width: 12px; height: 12px;"></i>
                 <span></span>
+            </div>
+            <div id="duplicateWarning" style="display: none; margin-top: 0.5rem; padding: 0.5rem; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 4px; font-size: 0.875rem; color: #92400e;">
+                <i data-lucide="alert-triangle" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i>
+                <strong>Warning:</strong> A customer with this name already exists. Please check if you want to add a duplicate.
             </div>
         </div>
 
@@ -120,6 +129,31 @@ function clearError(errorId, inputId) {
 
     errorEl.classList.remove('show');
     if (inputEl) inputEl.classList.remove('input-error');
+}
+
+function checkDuplicateName() {
+    const input = document.getElementById('customerName');
+    const value = input.value.trim();
+    const warningDiv = document.getElementById('duplicateWarning');
+    const customerNames = {{ customer_names|tojson }};
+    
+    if (value && customerNames.length > 0) {
+        // Check if the entered name matches an existing customer (case-insensitive)
+        const isDuplicate = customerNames.some(name => name.toLowerCase() === value.toLowerCase());
+        
+        if (isDuplicate) {
+            warningDiv.style.display = 'block';
+            input.style.borderColor = '#fcd34d';
+        } else {
+            warningDiv.style.display = 'none';
+            input.style.borderColor = '';
+        }
+    } else {
+        warningDiv.style.display = 'none';
+        input.style.borderColor = '';
+    }
+    
+    lucide.createIcons();
 }
 
 function validateName() {

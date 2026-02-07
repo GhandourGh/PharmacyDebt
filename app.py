@@ -237,10 +237,14 @@ def add_customer():
 
         except ValidationError as e:
             flash(e.message, 'error')
-            return render_template('add_customer.html')
+            existing_customers = db.get_all_customers()
+            customer_names = [c['name'] for c in existing_customers if c.get('name')]
+            return render_template('add_customer.html', customer_names=customer_names)
         except Exception as e:
             flash(f'An unexpected error occurred: {str(e)}', 'error')
-            return render_template('add_customer.html')
+            existing_customers = db.get_all_customers()
+            customer_names = [c['name'] for c in existing_customers if c.get('name')]
+            return render_template('add_customer.html', customer_names=customer_names)
 
     return render_template('add_customer.html')
 
