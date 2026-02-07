@@ -1975,48 +1975,79 @@ def import_data_from_csv(csv_content):
                             continue
                         row_dict = dict(zip(headers, row))
                         old_customer_id = row_dict.get('customer_id')
-                        new_customer_id = id_mapping['customers'].get(str(old_customer_id)) if old_customer_id else None
+                        
+                        # Try to find the customer ID in mapping (handle both string and int)
+                        new_customer_id = None
+                        if old_customer_id:
+                            # Try as string first
+                            new_customer_id = id_mapping['customers'].get(str(old_customer_id))
+                            # If not found, try as int
+                            if not new_customer_id:
+                                try:
+                                    new_customer_id = id_mapping['customers'].get(str(int(float(old_customer_id))))
+                                except (ValueError, TypeError):
+                                    pass
+                        
                         if not new_customer_id:
+                            # Skip entries without valid customer
                             continue
+                        
                         ledger_entries.append({
                             'old_id': row_dict.get('id'),
                             'row_dict': row_dict,
                             'new_customer_id': new_customer_id
                         })
                     
-                    # Second pass: import and map ledger IDs
+                    # Second pass: import and map ledger IDs (need to do in order for reference_id)
                     for entry in ledger_entries:
                         row_dict = entry['row_dict']
                         old_ledger_id = entry['old_id']
                         old_reference_id = row_dict.get('reference_id')
-                        new_reference_id = ledger_id_mapping.get(str(old_reference_id)) if old_reference_id else None
                         
-                        cursor.execute('''
-                            INSERT INTO ledger (customer_id, entry_type, amount, balance_after, rx_number, description, notes, payment_method, reference_id, created_by, created_at, is_voided, voided_by, voided_at, void_reason, is_deleted, deleted_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', (
-                            entry['new_customer_id'],
-                            row_dict.get('entry_type'),
-                            float(row_dict.get('amount', 0)) if row_dict.get('amount') else 0,
-                            float(row_dict.get('balance_after')) if row_dict.get('balance_after') else None,
-                            row_dict.get('rx_number'),
-                            row_dict.get('description'),
-                            row_dict.get('notes'),
-                            row_dict.get('payment_method'),
-                            new_reference_id,
-                            row_dict.get('created_by'),
-                            row_dict.get('created_at'),
-                            int(row_dict.get('is_voided', 0)) if row_dict.get('is_voided') else 0,
-                            row_dict.get('voided_by'),
-                            row_dict.get('voided_at'),
-                            row_dict.get('void_reason'),
-                            int(row_dict.get('is_deleted', 0)) if row_dict.get('is_deleted') else 0,
-                            row_dict.get('deleted_at')
-                        ))
-                        new_ledger_id = cursor.lastrowid
-                        if old_ledger_id:
-                            ledger_id_mapping[str(old_ledger_id)] = new_ledger_id
-                        imported['ledger'] += 1
+                        # Map reference_id if it exists
+                        new_reference_id = None
+                        if old_reference_id:
+                            new_reference_id = ledger_id_mapping.get(str(old_reference_id))
+                            if not new_reference_id:
+                                try:
+                                    new_reference_id = ledger_id_mapping.get(str(int(float(old_reference_id))))
+                                except (ValueError, TypeError):
+                                    pass
+                        
+                        try:
+                            cursor.execute('''
+                                INSERT INTO ledger (customer_id, entry_type, amount, balance_after, rx_number, description, notes, payment_method, reference_id, created_by, created_at, is_voided, voided_by, voided_at, void_reason, is_deleted, deleted_at)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ''', (
+                                entry['new_customer_id'],
+                                row_dict.get('entry_type'),
+                                float(row_dict.get('amount', 0)) if row_dict.get('amount') else 0,
+                                float(row_dict.get('balance_after')) if row_dict.get('balance_after') and str(row_dict.get('balance_after')).strip() else None,
+                                row_dict.get('rx_number'),
+                                row_dict.get('description'),
+                                row_dict.get('notes'),
+                                row_dict.get('payment_method'),
+                                new_reference_id,
+                                row_dict.get('created_by'),
+                                row_dict.get('created_at'),
+                                int(row_dict.get('is_voided', 0)) if row_dict.get('is_voided') and str(row_dict.get('is_voided')).strip() else 0,
+                                row_dict.get('voided_by'),
+                                row_dict.get('voided_at'),
+                                row_dict.get('void_reason'),
+                                int(row_dict.get('is_deleted', 0)) if row_dict.get('is_deleted') and str(row_dict.get('is_deleted')).strip() else 0,
+                                row_dict.get('deleted_at')
+                            ))
+                            new_ledger_id = cursor.lastrowid
+                            if old_ledger_id:
+                                ledger_id_mapping[str(old_ledger_id)] = new_ledger_id
+                            imported['ledger'] += 1
+                        except Exception as e:
+                            errors.append(f"Error importing ledger entry {old_ledger_id}: {str(e)}")
+                            continue
+                            
+                elif section_name == 'LEDGER_SUMMARY':
+                    # Skip LEDGER_SUMMARY - it's a calculated section, not raw data
+                    pass
             except Exception as e:
                 errors.append(f"Error importing {section_name}: {str(e)}")
                         
