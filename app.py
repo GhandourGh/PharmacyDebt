@@ -1069,7 +1069,7 @@ def import_backup():
     except Exception as e:
         flash(f'Error importing backup: {str(e)}', 'error')
         return redirect(url_for('settings'))
-
+    
 @app.route('/admin/create-demo-data', methods=['POST'])
 def create_demo_data():
     """Create demo data for testing"""

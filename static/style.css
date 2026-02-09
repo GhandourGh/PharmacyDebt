@@ -2715,20 +2715,168 @@ tr.voided td {
 }
 
 /* Print styles */
+@page {
+    size: A5;
+    margin: 0.8cm;
+    /* A5 dimensions: 14.85cm x 21cm (half of A4) */
+    /* Note: Browser headers/footers (time, URL/IP) are controlled by browser print settings */
+    /* Users need to disable "Headers and footers" in their browser's print dialog */
+}
+
 @media print {
-    .navbar, .btn, .quick-actions, .search-container, .modal-overlay, .history-filters, .btn-icon-delete, .profile-card-menu {
+
+    .navbar, .btn, .quick-actions, .search-container, .modal-overlay, .history-filters, .btn-icon-delete, .profile-card-menu, .page-header .btn-group {
+        display: none !important;
+    }
+
+    /* Ensure history section is visible - override any hiding */
+    .card.card-info {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
+
+    .table-container {
+        display: block !important;
+        visibility: visible !important;
+    }
+
+    .history-table {
+        display: table !important;
+        visibility: visible !important;
+        width: 100% !important;
+    }
+
+    .history-table thead {
+        display: table-header-group !important;
+    }
+
+    .history-table tbody {
+        display: table-row-group !important;
+    }
+
+    .history-table tr {
+        display: table-row !important;
+    }
+
+    .history-table th,
+    .history-table td {
+        display: table-cell !important;
+    }
+
+    .history-row-data {
+        display: table-row !important;
+        visibility: visible !important;
+    }
+
+    /* Show all history rows in print, even if filtered */
+    .history-row-data.filter-hidden {
+        display: table-row !important;
+        visibility: visible !important;
+    }
+
+    /* Hide empty state message in print */
+    .empty-state,
+    #noResultsMessage {
+        display: none !important;
+    }
+
+    /* Ensure history card header is visible */
+    .card.card-info .card-header {
+        display: block !important;
+        visibility: visible !important;
+    }
+
+    /* Hide the last column with action buttons but keep the table structure */
+    .history-table th:last-child,
+    .history-table td:last-child {
+        display: none !important;
+    }
+
+    /* Make sure history section is always visible */
+    .card.card-info:has(.history-table) {
+        display: block !important;
+        visibility: visible !important;
+        page-break-inside: avoid;
+    }
+
+    /* Hide menu buttons and navigation links in navbar when printing */
+    .nav-menu-btn, #menuToggle, #desktopMenuDropdown, #mobileMenu, 
+    button[onclick="toggleDesktopMenu()"],
+    .nav-wrapper-new nav > div,
+    .nav-wrapper-new nav > button {
+        display: none !important;
+    }
+
+    /* Hide ALL images in navbar when printing */
+    .nav-wrapper-new nav img,
+    .nav-wrapper-new nav a img,
+    .nav-wrapper-new nav a[href*="dashboard"] img {
+        display: none !important;
+        visibility: hidden !important;
+        width: 0 !important;
+        height: 0 !important;
+    }
+
+    /* Style the link wrapper for print */
+    .nav-wrapper-new nav a[href*="dashboard"] {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-decoration: none !important;
+        color: #000 !important;
+        gap: 0 !important;
+        width: 100% !important;
+    }
+
+    /* Force show Pharmacy Thabet text - override Tailwind's hidden class completely */
+    .nav-wrapper-new nav a[href*="dashboard"] span.hidden,
+    .nav-wrapper-new nav a[href*="dashboard"] span,
+    .nav-wrapper-new nav span:not([style*="display: none"]) {
+        display: inline-block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        font-size: 1.1rem !important;
+        font-weight: 700 !important;
+        color: #000 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* Make navbar show Pharmacy Thabet prominently and center it */
+    .nav-wrapper-new nav {
+        justify-content: center !important;
+        align-items: center !important;
+        padding: 0.5rem 1rem !important;
+    }
+
+    .nav-wrapper-new nav > a[href*="dashboard"] {
+        margin: 0 auto !important;
+        flex: 0 0 auto !important;
+    }
+
+    /* Hide View Details button and eye icons in history */
+    .btn-view-items, .btn-icon-toggle {
         display: none !important;
     }
 
     .container {
         max-width: 100%;
         padding: 0;
+        width: 100%;
+    }
+
+    /* Optimize for A5 paper size */
+    body {
+        width: 100%;
+        max-width: 13.25cm; /* A5 width (14.85cm) minus margins (1.6cm) */
     }
 
     .card {
         box-shadow: none;
         border: 1px solid #ddd;
         break-inside: avoid;
+        page-break-inside: avoid;
     }
 
     .profile-card {
@@ -2741,6 +2889,174 @@ tr.voided td {
         background-color: #f5f5f5 !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
+    }
+
+    /* Receipt-style printing for customer page */
+    .balance-cards {
+        page-break-inside: avoid;
+        margin-bottom: 1rem;
+    }
+
+    .balance-card {
+        border: 2px solid #000 !important;
+        page-break-inside: avoid;
+    }
+
+    /* Hide action buttons and filters when printing */
+    .btn-group, .filter-group, .filter-summary {
+        display: none !important;
+    }
+
+    /* Better table printing */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    table th, table td {
+        border: 1px solid #ddd;
+        padding: 0.5rem;
+    }
+
+    table thead {
+        background-color: #f5f5f5 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* Page header adjustments */
+    .page-header {
+        page-break-after: avoid;
+        border-bottom: 1.5px solid #000;
+        padding-bottom: 0.5rem !important;
+        margin-bottom: 0.6rem !important;
+    }
+
+    /* Make overall UI size for print - optimized for A5 */
+    body {
+        font-size: 0.8rem !important;
+    }
+
+    /* Page title */
+    .page-title {
+        font-size: 1.1rem !important;
+        margin-bottom: 0.25rem !important;
+    }
+
+    /* Fix phone icon alignment */
+    .page-header p {
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.35rem !important;
+        margin-top: 0.15rem !important;
+        font-size: 0.85rem !important;
+    }
+
+    .page-header p i[data-lucide="phone"] {
+        width: 13px !important;
+        height: 13px !important;
+        vertical-align: baseline !important;
+        display: inline-block !important;
+        flex-shrink: 0 !important;
+    }
+
+    /* Avatar size */
+    .page-header img,
+    .page-header > div > div[style*="width: 64px"] {
+        width: 44px !important;
+        height: 44px !important;
+        font-size: 17px !important;
+    }
+
+    /* Balance cards */
+    .balance-cards {
+        margin-bottom: 0.6rem !important;
+        gap: 0.6rem !important;
+    }
+
+    .balance-card {
+        padding: 0.6rem !important;
+    }
+
+    .balance-label {
+        font-size: 0.7rem !important;
+        margin-bottom: 0.2rem !important;
+    }
+
+    .balance-value {
+        font-size: 1.35rem !important;
+    }
+
+    .balance-subtext {
+        font-size: 0.65rem !important;
+        margin-top: 0.15rem !important;
+    }
+
+    /* Card headers */
+    .card-header {
+        padding: 0.5rem 0.6rem !important;
+    }
+
+    .card-title {
+        font-size: 0.85rem !important;
+    }
+
+    /* Table */
+    .history-table th,
+    .history-table td {
+        padding: 0.35rem 0.45rem !important;
+        font-size: 0.7rem !important;
+    }
+
+    .history-table th {
+        font-size: 0.7rem !important;
+        font-weight: 600 !important;
+    }
+
+    /* Badges */
+    .badge {
+        font-size: 0.65rem !important;
+        padding: 0.2rem 0.35rem !important;
+    }
+
+    .type-badge {
+        font-size: 0.65rem !important;
+        padding: 0.2rem 0.45rem !important;
+    }
+
+    .type-badge i {
+        width: 11px !important;
+        height: 11px !important;
+    }
+
+    .amount-badge {
+        font-size: 0.75rem !important;
+    }
+
+    /* Description text */
+    .description-cell {
+        font-size: 0.7rem !important;
+        line-height: 1.4 !important;
+    }
+
+    /* Date/time in history */
+    .date-cell {
+        font-size: 0.7rem !important;
+    }
+
+    .date-cell .time-12h {
+        font-size: 0.65rem !important;
+    }
+
+    /* Hide links and show text only */
+    a {
+        color: #000 !important;
+        text-decoration: none !important;
+    }
+
+    /* Remove print date/time at top */
+    body::before {
+        display: none !important;
     }
 }
 

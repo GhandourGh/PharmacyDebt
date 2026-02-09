@@ -47,6 +47,10 @@
                 <i data-lucide="download"></i>
                 Download PDF
             </a>
+            <button onclick="window.print()" class="btn btn-secondary">
+                <i data-lucide="printer"></i>
+                Print Report
+            </button>
         </div>
     </form>
 </div>
@@ -113,4 +117,11 @@
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Set print date for report
+    document.body.setAttribute('data-print-date', new Date().toLocaleString());
+</script>
 {% endblock %}

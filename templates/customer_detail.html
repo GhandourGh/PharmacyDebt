@@ -37,6 +37,10 @@
             <i data-lucide="download"></i>
             Download PDF
         </a>
+        <button onclick="window.print()" class="btn btn-secondary">
+            <i data-lucide="printer"></i>
+            Print Receipt
+        </button>
     </div>
 </div>
 
@@ -1257,5 +1261,8 @@
             }
         }
     }
+
+    // Set print date for receipt
+    document.body.setAttribute('data-print-date', new Date().toLocaleString());
 </script>
 {% endblock %}
