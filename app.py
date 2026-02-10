@@ -494,6 +494,57 @@ def add_payment(customer_id):
         flash(f'An unexpected error occurred: {str(e)}', 'error')
         return redirect(url_for('customer_detail', customer_id=customer_id))
 
+
+@app.route('/customers/<int:customer_id>/add-credit', methods=['POST'])
+def add_credit(customer_id):
+    """
+    Add third‑party credit to a customer's account.
+
+    This credit will:
+    - Reduce any existing debt immediately
+    - Become a positive credit (negative balance) if there is no debt,
+      and will be automatically consumed by future debts.
+    """
+    try:
+        # Validate customer exists and is active
+        customer = db.get_customer(customer_id)
+        validate_customer_active(customer)
+
+        # Validate credit amount (no balance check – credit is always allowed)
+        amount = validate_amount(request.form.get('amount'), 'Amount')
+
+        # Validate payer name (Person Y) and notes
+        payer_name = validate_string(
+            request.form.get('payer_name', ''),
+            'Payer name',
+            required=False,
+            max_length=200,
+        )
+        notes = validate_string(
+            request.form.get('notes', ''),
+            'Notes',
+            required=False,
+            max_length=500,
+        )
+
+        db.add_credit(
+            customer_id,
+            amount,
+            payer_name=payer_name,
+            notes=notes,
+            user_id=None,
+        )
+
+        flash(f'Credit of ${amount:.2f} added.', 'success')
+        return redirect(url_for('customer_detail', customer_id=customer_id))
+
+    except ValidationError as e:
+        flash(e.message, 'error')
+        return redirect(url_for('customer_detail', customer_id=customer_id))
+    except Exception as e:
+        flash(f'Error adding credit: {str(e)}', 'error')
+        return redirect(url_for('customer_detail', customer_id=customer_id))
+
 @app.route('/ledger/<int:ledger_id>/edit', methods=['POST'])
 def edit_entry(ledger_id):
     customer_id = request.form.get('customer_id')

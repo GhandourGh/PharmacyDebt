@@ -463,6 +463,81 @@ def add_payment(customer_id, amount, payment_method='CASH', notes=None, user_id=
         conn.commit()
         return ledger_id
 
+
+def add_credit(customer_id, amount, payer_name=None, notes=None, user_id=None):
+    """
+    Add third‑party credit to a customer's account.
+
+    This behaves like a special payment:
+    - Stored in the ledger as entry_type = 'PAYMENT', payment_method = 'CREDIT'
+    - If the customer has outstanding debt, this reduces the debt.
+    - If there is no debt, this creates a positive credit (negative balance)
+      which will be automatically consumed by future debts.
+    """
+    customer = get_customer(customer_id)
+    if not customer:
+        raise ValueError("Customer not found")
+    if not customer.get('is_active', True):
+        raise ValueError("Cannot add credit to deactivated customer")
+    if amount is None or amount <= 0:
+        raise ValueError("Credit amount must be positive")
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        current_balance = get_customer_balance(customer_id)
+        # Credit always reduces what the customer owes (or increases credit)
+        new_balance = current_balance - amount
+
+        # Build notes: include payer name + optional extra notes
+        parts = []
+        if payer_name:
+            parts.append(f"Credit from {payer_name}")
+        if notes:
+            parts.append(notes)
+        full_notes = " - ".join(parts) if parts else None
+
+        cursor.execute(
+            '''
+            INSERT INTO ledger (
+                customer_id,
+                entry_type,
+                amount,
+                balance_after,
+                payment_method,
+                notes,
+                created_by,
+                created_at
+            )
+            VALUES (?, 'PAYMENT', ?, ?, 'CREDIT', ?, ?, ?)
+            ''',
+            (
+                customer_id,
+                amount,
+                new_balance,
+                full_notes,
+                user_id,
+                datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            ),
+        )
+        ledger_id = cursor.lastrowid
+
+        audit_notes = f"Amount: {amount}, Payer: {payer_name or ''}"
+
+        log_audit(
+            user_id,
+            'ADD_CREDIT',
+            'ledger',
+            ledger_id,
+            None,
+            audit_notes,
+            conn=conn,
+        )
+
+        conn.commit()
+        return ledger_id
+
+
 def add_adjustment(customer_id, amount, reason, reference_id=None, user_id=None):
     """Add an adjustment entry (can be positive or negative)"""
     with get_db() as conn:

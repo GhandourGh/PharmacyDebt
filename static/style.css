@@ -609,6 +609,30 @@ body {
     border-color: #cbd5e1;
 }
 
+/* Success-outline variations for credit / mark paid */
+.btn-credit {
+    border-color: #16a34a;
+    color: #16a34a;
+    box-shadow: 0 2px 8px rgba(22, 163, 74, 0.2);
+}
+
+.btn-credit:hover {
+    background: #ecfdf3;
+    border-color: #16a34a;
+}
+
+.btn-mark-all {
+    border-color: #22c55e;
+    color: #166534;
+    background: #ecfdf3;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.2);
+}
+
+.btn-mark-all:hover {
+    background: #bbf7d0;
+    border-color: #16a34a;
+}
+
 .btn-sm {
     padding: 0.4rem 0.8rem;
     font-size: 0.8rem;

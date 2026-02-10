@@ -21,8 +21,8 @@
                 {{ customer.name }}
             </h1>
             {% if customer.phone %}
-            <p style="color: #64748b; margin-top: 0.25rem;">
-                <i data-lucide="phone" style="width: 16px; height: 16px; vertical-align: middle;"></i>
+            <p style="color: #64748b; margin-top: 0.25rem; display: flex; align-items: center; gap: 0.35rem;">
+                <i data-lucide="phone" style="width: 16px; height: 16px;"></i>
                 {{ customer.phone }}
             </p>
             {% endif %}
@@ -51,6 +51,9 @@
             {% if total_debt > 0 %}
             <i data-lucide="alert-circle" style="width: 18px; height: 18px; vertical-align: middle;"></i>
             Owes You
+            {% elif total_debt < 0 %}
+            <i data-lucide="wallet-cards" style="width: 18px; height: 18px; vertical-align: middle;"></i>
+            Has Credit
             {% else %}
             <i data-lucide="check-circle" style="width: 18px; height: 18px; vertical-align: middle;"></i>
             All Paid
@@ -80,9 +83,13 @@
         <i data-lucide="banknote"></i>
         Record Payment
     </button>
+    <button class="btn btn-outline btn-credit" onclick="openModal('addCreditModal')">
+        <i data-lucide="wallet-cards"></i>
+        Add Credit
+    </button>
     {% if total_debt > 0 %}
     <form method="POST" action="{{ url_for('mark_paid', customer_id=customer.id) }}" style="display: inline;">
-        <button type="submit" class="btn btn-success" style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);" onclick="return confirmMarkPaid({{ total_debt }})">
+        <button type="submit" class="btn btn-outline btn-mark-all" onclick="return confirmMarkPaid({{ total_debt }})">
             <i data-lucide="check-circle-2"></i>
             Mark All Paid
         </button>
@@ -361,6 +368,49 @@
                     Record Payment
                 </button>
                 <button type="button" class="btn btn-secondary" onclick="closeModal('addPaymentModal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Add Credit Modal (Third‑Party Credit) -->
+<div class="modal-overlay" id="addCreditModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 class="modal-title payment">
+                <i data-lucide="wallet-cards"></i>
+                Add Credit (Third Party)
+            </h3>
+            <button class="modal-close" onclick="closeModal('addCreditModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+
+        <form method="POST" action="{{ url_for('add_credit', customer_id=customer.id) }}">
+            <div class="form-group">
+                <label class="form-label">Payer Name (Person Y)</label>
+                <input type="text" name="payer_name" class="form-control"
+                       placeholder="Who is paying for this customer?">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Amount *</label>
+                <input type="number" name="amount" class="form-control"
+                       required step="0.01" min="0.01" placeholder="Credit amount">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Notes (optional)</label>
+                <input type="text" name="notes" class="form-control" placeholder="Any notes">
+            </div>
+
+            <div class="btn-group">
+                <button type="submit" class="btn btn-success">
+                    <i data-lucide="check"></i>
+                    Add Credit
+                </button>
+                <button type="button" class="btn btn-secondary"
+                        onclick="closeModal('addCreditModal')">Cancel</button>
             </div>
         </form>
     </div>
