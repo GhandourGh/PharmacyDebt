@@ -3,7 +3,72 @@
 {% block title %}{{ customer.name }} - Pharmacy Thabet{% endblock %}
 
 {% block content %}
-<div class="page-header">
+<!-- Print-only receipt: dedicated A5 template (hidden on screen, shown when printing) -->
+<div class="print-receipt-only receipt-document" style="display: none;">
+    <div class="receipt-page">
+        <header class="receipt-header">
+            <div class="receipt-brand">Pharmacy Thabet</div>
+            <div class="receipt-subtitle">Customer Report</div>
+        </header>
+
+        <section class="receipt-customer">
+            <h1 class="receipt-customer-name">{{ customer.name }}</h1>
+            {% if customer.phone %}<p class="receipt-customer-line">Phone: {{ customer.phone }}</p>{% endif %}
+            {% if customer.address %}<p class="receipt-customer-line">Address: {{ customer.address }}</p>{% endif %}
+            {% if customer.email %}<p class="receipt-customer-line">Email: {{ customer.email }}</p>{% endif %}
+        </section>
+
+        <section class="receipt-summary">
+            <table class="receipt-summary-table">
+                <tr>
+                    <td class="receipt-summary-label">{% if total_debt < 0 %}Credit Balance{% else %}Amount Due{% endif %}</td>
+                    <td class="receipt-summary-value {% if total_debt < 0 %}receipt-credit{% endif %}">${{ "%.2f"|format(total_debt|abs) }}</td>
+                </tr>
+            </table>
+            <p class="receipt-debt-left {% if total_debt < 0 %}receipt-credit{% endif %}">{% if total_debt < 0 %}Credit Balance: ${{ "%.2f"|format(total_debt|abs) }}{% else %}Debt Left: ${{ "%.2f"|format(total_debt) }}{% endif %}</p>
+        </section>
+
+        <section class="receipt-items">
+            <h2 class="receipt-section-title">Outstanding Items</h2>
+            {% if receipt_ledger %}
+            <table class="receipt-table">
+                <thead>
+                    <tr>
+                        <th class="receipt-th receipt-th-date">Date</th>
+                        <th class="receipt-th receipt-th-items">Items</th>
+                        <th class="receipt-th receipt-th-amount">Amount Due</th>
+                        <th class="receipt-th receipt-th-notes">Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in receipt_ledger %}
+                    {% set amount_due = entry.remaining_amount if entry.remaining_amount is not none else entry.amount %}
+                    <tr class="receipt-tr">
+                        <td class="receipt-td receipt-td-date">{{ entry.created_at[:10] if entry.created_at else '-' }}</td>
+                        <td class="receipt-td receipt-td-items">
+                            {% set items_list = entry.get('items', []) %}
+                            {% if items_list %}
+                            {% for item in items_list %}{{ item.product_name }}{% if item.quantity > 1 %} (x{{ item.quantity }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+                            {% else %}-{% endif %}
+                        </td>
+                        <td class="receipt-td receipt-td-amount">${{ "%.2f"|format(amount_due) }}</td>
+                        <td class="receipt-td receipt-td-notes">{{ entry.description or entry.notes or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="receipt-empty">No outstanding items.</p>
+            {% endif %}
+        </section>
+
+        <footer class="receipt-footer">
+            Generated on <span class="receipt-print-date"></span>
+        </footer>
+    </div>
+</div>
+
+<div class="page-header no-print">
     <div style="display: flex; align-items: center; gap: 1rem;">
         {% if customer.profile_image %}
         <img src="{{ url_for('static', filename='uploads/' + customer.profile_image) }}" alt="{{ customer.name }}" style="width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 3px solid #e2e8f0;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
@@ -45,7 +110,7 @@
 </div>
 
 <!-- Current Balance - Big and Clear -->
-<div class="balance-cards" style="margin-bottom: 2rem;">
+<div class="balance-cards no-print" style="margin-bottom: 2rem;">
     <div class="balance-card {% if total_debt > 0 %}has-debt{% else %}no-debt{% endif %}">
         <div class="balance-label">
             {% if total_debt > 0 %}
@@ -74,10 +139,11 @@
 </div>
 
 <!-- Action Buttons -->
-<div class="quick-actions" style="margin-bottom: 2rem;">
+<div class="quick-actions no-print" style="margin-bottom: 2rem;">
     <button class="btn btn-debt" onclick="openModal('addDebtModal')">
         <i data-lucide="plus-circle"></i>
         Add Debt
+        {% if total_debt < 0 %}<span class="btn-subtitle">(use credit)</span>{% endif %}
     </button>
     <button class="btn btn-success" onclick="openModal('addPaymentModal')">
         <i data-lucide="banknote"></i>
@@ -88,8 +154,8 @@
         Add Credit
     </button>
     {% if total_debt > 0 %}
-    <form method="POST" action="{{ url_for('mark_paid', customer_id=customer.id) }}" style="display: inline;">
-        <button type="submit" class="btn btn-outline btn-mark-all" onclick="return confirmMarkPaid({{ total_debt }})">
+    <form method="POST" action="{{ url_for('mark_paid', customer_id=customer.id) }}" style="display: inline;" data-total-debt="{{ total_debt }}">
+        <button type="submit" class="btn btn-outline btn-mark-all" onclick="return confirmMarkPaid(parseFloat(this.form.dataset.totalDebt))">
             <i data-lucide="check-circle-2"></i>
             Mark All Paid
         </button>
@@ -98,7 +164,7 @@
 </div>
 
 <!-- History - Simple and Clear -->
-<div class="card card-info">
+<div class="card card-info no-print">
     <div class="card-header">
         <h2 class="card-title">
             <i data-lucide="history"></i>
@@ -174,12 +240,13 @@
             </thead>
             <tbody id="historyTableBody">
                 {% for entry in ledger|reverse %}
-                <tr class="history-row-data" 
-                    data-date="{{ entry.created_at[:10] if entry.created_at and (entry.created_at|length) >= 10 else '' }}" 
+                <tr class="history-row-data{% if entry.entry_type == 'NEW_DEBT' and entry.payment_status == 'PAID' %} fifo-paid{% endif %}"
+                    data-date="{{ entry.created_at[:10] if entry.created_at and (entry.created_at|length) >= 10 else '' }}"
                     data-datetime="{{ entry.created_at if entry.created_at else '' }}"
                     data-time="{% if entry.created_at and (entry.created_at|length) > 10 %}{% if 'T' in entry.created_at %}{{ entry.created_at[11:19] }}{% elif ' ' in entry.created_at %}{{ entry.created_at[11:19] }}{% else %}00:00:00{% endif %}{% else %}00:00:00{% endif %}"
                     data-amount="{{ entry.amount if entry.amount else 0 }}"
-                    data-type="{{ 'debt' if entry.entry_type == 'NEW_DEBT' else 'payment' }}">
+                    data-type="{{ 'debt' if entry.entry_type == 'NEW_DEBT' else 'payment' }}"
+                    data-payment-status="{{ entry.payment_status or '' }}">
                     <td class="date-cell" style="white-space: nowrap;">
                         {% if entry.created_at %}
                         {% set datetime_str = entry.created_at %}
@@ -265,8 +332,9 @@
                                 </button>
                             </form>
                             {% endif %}
-                            <form method="POST" action="{{ url_for('delete_entry', ledger_id=entry.id) }}" style="display: inline;" 
-                                  onsubmit="return confirmDeleteEntry(this, '{{ entry.entry_type }}', {{ entry.amount }}, '{{ (entry.description or entry.notes or '')|replace("'", "\\'") }}');">
+                            <form method="POST" action="{{ url_for('delete_entry', ledger_id=entry.id) }}" style="display: inline;" class="delete-entry-form"
+                                  data-entry-type="{{ entry.entry_type }}" data-entry-amount="{{ entry.amount }}" data-entry-desc="{{ (entry.description or entry.notes or '')|e }}"
+                                  onsubmit="return confirmDeleteEntry(this)">
                                 <input type="hidden" name="customer_id" value="{{ customer.id }}">
                                 <button type="submit" class="btn-icon-delete" title="Delete permanently">
                                     <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
@@ -555,73 +623,12 @@
         </form>
     </div>
 </div>
-
-<!-- Edit Entry Modal -->
-<div class="modal-overlay" id="editEntryModal">
-    <div class="modal" style="max-width: 700px;">
-        <div class="modal-header">
-            <h3 class="modal-title" id="editEntryModalTitle">
-                <i data-lucide="edit-2"></i>
-                Edit Entry
-            </h3>
-            <button class="modal-close" onclick="closeModal('editEntryModal')">
-                <i data-lucide="x"></i>
-            </button>
-        </div>
-
-        <form id="editEntryForm" method="POST">
-            <input type="hidden" name="customer_id" value="{{ customer.id }}">
-            <input type="hidden" id="editEntryId" name="ledger_id">
-            <input type="hidden" id="editEntryType" name="entry_type">
-
-            <!-- Debt Entry Edit Form -->
-            <div id="editDebtForm" style="display: none;">
-                <div class="form-group">
-                    <label class="form-label">Items</label>
-                    <div class="items-list" id="editItemsContainer">
-                        <!-- Items will be added here by JavaScript -->
-                    </div>
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="addEditItem()">
-                        <i data-lucide="plus"></i>
-                        Add Item
-                    </button>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Notes (optional)</label>
-                    <input type="text" name="notes" id="editDebtNotes" class="form-control" placeholder="Any notes">
-                </div>
-            </div>
-
-            <!-- Payment Entry Edit Form -->
-            <div id="editPaymentForm" style="display: none;">
-                <div class="form-group">
-                    <label class="form-label">Amount *</label>
-                    <input type="number" name="amount" id="editPaymentAmount" class="form-control" required step="0.01" min="0.01" placeholder="Payment amount">
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Notes (optional)</label>
-                    <input type="text" name="notes" id="editPaymentNotes" class="form-control" placeholder="Any notes">
-                </div>
-            </div>
-
-            <div class="btn-group">
-                <button type="submit" class="btn btn-success">
-                    <i data-lucide="check"></i>
-                    Save Changes
-                </button>
-                <button type="button" class="btn btn-secondary" onclick="closeModal('editEntryModal')">Cancel</button>
-            </div>
-        </form>
-    </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
+<script type="application/json" id="products-data">{{ products | tojson }}</script>
 <script>
-    // Pass products data to JavaScript
-    window.productsData = {{ products | tojson }};
+    window.productsData = JSON.parse(document.getElementById('products-data').textContent || '[]');
 
     // Current type filter value (default to 'debt')
     let currentTypeFilter = 'debt';
@@ -805,9 +812,12 @@
 
 
     // Confirm delete entry (permanent)
-    function confirmDeleteEntry(form, entryType, amount, description) {
+    function confirmDeleteEntry(form) {
+        const entryType = form.dataset.entryType || '';
+        const amount = parseFloat(form.dataset.entryAmount) || 0;
+        const description = form.dataset.entryDesc || '';
         const entryTypeText = entryType === 'NEW_DEBT' ? 'Debt' : 'Payment';
-        const amountText = entryType === 'NEW_DEBT' ? `+$${Math.abs(parseFloat(amount)).toFixed(2)}` : `-$${Math.abs(parseFloat(amount)).toFixed(2)}`;
+        const amountText = entryType === 'NEW_DEBT' ? `+$${Math.abs(amount).toFixed(2)}` : `-$${Math.abs(amount).toFixed(2)}`;
         const descText = description && description.trim() ? `\nDescription: ${description}` : '';
         
         const message = `⚠️ WARNING: This will PERMANENTLY delete this ${entryTypeText.toLowerCase()} entry!\n\n` +
@@ -1314,5 +1324,7 @@
 
     // Set print date for receipt
     document.body.setAttribute('data-print-date', new Date().toLocaleString());
+    var receiptDateEl = document.querySelector('.receipt-print-date');
+    if (receiptDateEl) receiptDateEl.textContent = new Date().toLocaleString();
 </script>
 {% endblock %}

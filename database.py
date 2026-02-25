@@ -110,13 +110,43 @@ def init_db():
             conn.commit()
         except:
             pass  # Column already exists
-        
+
         # Add deleted_at column if it doesn't exist (for existing databases)
         try:
             cursor.execute('ALTER TABLE ledger ADD COLUMN deleted_at TIMESTAMP')
             conn.commit()
         except:
             pass  # Column already exists
+
+        # FIFO tracking columns for debt entries
+        try:
+            cursor.execute('ALTER TABLE ledger ADD COLUMN remaining_amount REAL')
+            conn.commit()
+        except:
+            pass  # Column already exists
+
+        try:
+            cursor.execute("ALTER TABLE ledger ADD COLUMN payment_status TEXT DEFAULT 'OPEN' CHECK(payment_status IN ('OPEN', 'PARTIAL', 'PAID'))")
+            conn.commit()
+        except:
+            pass  # Column already exists
+
+        # Net debt at creation: for NEW_DEBT, amount not covered by credit when added (for "Today's Debt Added" reporting)
+        try:
+            cursor.execute('ALTER TABLE ledger ADD COLUMN net_debt_at_creation REAL')
+            conn.commit()
+        except:
+            pass  # Column already exists
+
+        # Backfill existing NEW_DEBT entries that have NULL remaining_amount
+        cursor.execute('''
+            UPDATE ledger SET remaining_amount = amount, payment_status = 'OPEN'
+            WHERE entry_type = 'NEW_DEBT' AND remaining_amount IS NULL
+        ''')
+        conn.commit()
+
+        # Now retroactively apply FIFO for existing payments
+        _backfill_fifo(conn)
 
         # Ledger items (line items for each debt entry)
         cursor.execute('''
@@ -202,6 +232,92 @@ def init_db():
             cursor.execute('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', (key, value))
 
         conn.commit()
+
+
+def _backfill_fifo(conn):
+    """Retroactively apply FIFO allocation for existing payments on a per-customer basis."""
+    cursor = conn.cursor()
+
+    # Get all customers who have payments
+    cursor.execute('SELECT DISTINCT customer_id FROM ledger WHERE entry_type = "PAYMENT"')
+    customer_ids = [row['customer_id'] for row in cursor.fetchall()]
+
+    for cid in customer_ids:
+        # Reset all debts to full remaining
+        cursor.execute('''
+            UPDATE ledger SET remaining_amount = amount, payment_status = 'OPEN'
+            WHERE customer_id = ? AND entry_type = 'NEW_DEBT'
+        ''', (cid,))
+
+        # Get all payments in chronological order
+        cursor.execute('''
+            SELECT id, amount FROM ledger
+            WHERE customer_id = ? AND entry_type = 'PAYMENT'
+            ORDER BY created_at ASC
+        ''', (cid,))
+        payments = cursor.fetchall()
+
+        for payment in payments:
+            _apply_fifo_for_payment(cursor, cid, payment['amount'])
+
+    conn.commit()
+
+
+def _apply_fifo_for_payment(cursor, customer_id, payment_amount):
+    """Apply a payment amount to the oldest unpaid debts using FIFO. Works on an existing cursor (no commit)."""
+    remaining_payment = payment_amount
+
+    # Get unpaid/partial debts ordered by date (oldest first = FIFO)
+    cursor.execute('''
+        SELECT id, remaining_amount FROM ledger
+        WHERE customer_id = ? AND entry_type = 'NEW_DEBT'
+          AND payment_status IN ('OPEN', 'PARTIAL')
+          AND remaining_amount > 0
+        ORDER BY created_at ASC
+    ''', (customer_id,))
+    debts = cursor.fetchall()
+
+    for debt in debts:
+        if remaining_payment <= 0:
+            break
+
+        debt_remaining = debt['remaining_amount']
+        applied = min(remaining_payment, debt_remaining)
+        new_remaining = round(debt_remaining - applied, 2)
+
+        if new_remaining <= 0:
+            status = 'PAID'
+            new_remaining = 0.0
+        else:
+            status = 'PARTIAL'
+
+        cursor.execute('''
+            UPDATE ledger SET remaining_amount = ?, payment_status = ?
+            WHERE id = ?
+        ''', (new_remaining, status, debt['id']))
+
+        remaining_payment = round(remaining_payment - applied, 2)
+
+
+def _recalculate_customer_fifo(cursor, customer_id):
+    """Reset and recompute FIFO for a customer. Requires an existing cursor (no commit)."""
+    # Reset all debts to full remaining
+    cursor.execute('''
+        UPDATE ledger SET remaining_amount = amount, payment_status = 'OPEN'
+        WHERE customer_id = ? AND entry_type = 'NEW_DEBT'
+    ''', (customer_id,))
+
+    # Get all payments in chronological order
+    cursor.execute('''
+        SELECT id, amount FROM ledger
+        WHERE customer_id = ? AND entry_type = 'PAYMENT'
+        ORDER BY created_at ASC
+    ''', (customer_id,))
+    payments = cursor.fetchall()
+
+    for payment in payments:
+        _apply_fifo_for_payment(cursor, customer_id, payment['amount'])
+
 
 # ============== USER OPERATIONS ==============
 
@@ -353,10 +469,10 @@ def delete_product(product_id):
 # ============== LEDGER OPERATIONS ==============
 
 def get_customer_balance(customer_id):
-    """Calculate current balance for a customer (voided and deleted entries still count)"""
+    """Calculate current balance for a customer. Excludes voided/deleted so it matches total owed reporting.
+    Positive = customer owes; negative = customer has credit (reduces total owed)."""
     with get_db() as conn:
         cursor = conn.cursor()
-        # Include voided and deleted entries in balance calculation (they're just visual/hidden)
         cursor.execute('''
             SELECT COALESCE(SUM(
                 CASE
@@ -365,9 +481,11 @@ def get_customer_balance(customer_id):
                     ELSE 0
                 END
             ), 0) as balance
-            FROM ledger WHERE customer_id = ?
+            FROM ledger
+            WHERE customer_id = ? AND is_voided = 0 AND is_deleted = 0
         ''', (customer_id,))
-        return cursor.fetchone()['balance']
+        result = cursor.fetchone()['balance']
+        return float(result) if result is not None else 0.0
 
 def add_debt(customer_id, items, rx_number=None, description=None, notes=None, user_id=None, debt_date=None):
     """Add a new debt entry with validation. debt_date is optional YYYY-MM-DD string."""
@@ -398,6 +516,13 @@ def add_debt(customer_id, items, rx_number=None, description=None, notes=None, u
         current_balance = get_customer_balance(customer_id)
         new_balance = current_balance + total
 
+        # Net debt at creation: only the part not covered by credit (so "Today's Debt Added" doesn't count credit-covered portion)
+        net_debt_at_creation = total
+        if current_balance < 0:
+            credit_available = abs(current_balance)
+            credit_applied = min(credit_available, total)
+            net_debt_at_creation = round(total - credit_applied, 2)
+
         # Use provided date or current timestamp
         if debt_date:
             timestamp = debt_date + ' ' + datetime.now().strftime('%H:%M:%S')
@@ -406,9 +531,9 @@ def add_debt(customer_id, items, rx_number=None, description=None, notes=None, u
 
         # Insert ledger entry with explicit local timestamp
         cursor.execute('''
-            INSERT INTO ledger (customer_id, entry_type, amount, balance_after, rx_number, description, notes, created_by, created_at)
-            VALUES (?, 'NEW_DEBT', ?, ?, ?, ?, ?, ?, ?)
-        ''', (customer_id, total, new_balance, rx_number, description, notes, user_id, timestamp))
+            INSERT INTO ledger (customer_id, entry_type, amount, balance_after, rx_number, description, notes, created_by, created_at, remaining_amount, payment_status, net_debt_at_creation)
+            VALUES (?, 'NEW_DEBT', ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', ?)
+        ''', (customer_id, total, new_balance, rx_number, description, notes, user_id, timestamp, total, net_debt_at_creation))
         ledger_id = cursor.lastrowid
 
         # Insert line items
@@ -420,6 +545,14 @@ def add_debt(customer_id, items, rx_number=None, description=None, notes=None, u
 
         # Log audit
         log_audit(user_id, 'ADD_DEBT', 'ledger', ledger_id, None, f'Amount: {total}', conn=conn)
+
+        # If customer had credit, update remaining_amount and payment_status (net_debt_at_creation already set above).
+        # We do NOT create a new PAYMENT row when applying credit.
+        if current_balance < 0:
+            if net_debt_at_creation <= 0:
+                cursor.execute('UPDATE ledger SET remaining_amount = 0, payment_status = ? WHERE id = ?', ('PAID', ledger_id))
+            else:
+                cursor.execute('UPDATE ledger SET remaining_amount = ?, payment_status = ? WHERE id = ?', (net_debt_at_creation, 'PARTIAL', ledger_id))
 
         conn.commit()
         return ledger_id
@@ -457,6 +590,9 @@ def add_payment(customer_id, amount, payment_method='CASH', notes=None, user_id=
             VALUES (?, 'PAYMENT', ?, ?, ?, ?, ?, ?)
         ''', (customer_id, amount, new_balance, payment_method, notes, user_id, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
         ledger_id = cursor.lastrowid
+
+        # FIFO: allocate payment to oldest unpaid debts
+        _apply_fifo_for_payment(cursor, customer_id, amount)
 
         log_audit(user_id, 'ADD_PAYMENT', 'ledger', ledger_id, None, f'Amount: {amount}', conn=conn)
 
@@ -521,6 +657,9 @@ def add_credit(customer_id, amount, payer_name=None, notes=None, user_id=None):
             ),
         )
         ledger_id = cursor.lastrowid
+
+        # FIFO: allocate credit to oldest unpaid debts
+        _apply_fifo_for_payment(cursor, customer_id, amount)
 
         audit_notes = f"Amount: {amount}, Payer: {payer_name or ''}"
 
@@ -596,7 +735,7 @@ def write_off_debt(customer_id, amount, reason, user_id=None):
         return ledger_id
 
 def void_entry(ledger_id, reason, user_id=None):
-    """Void a ledger entry (hide it visually, but keep it in calculations)"""
+    """Void a ledger entry (hidden from display and excluded from balance calculations)"""
     with get_db() as conn:
         cursor = conn.cursor()
 
@@ -610,7 +749,6 @@ def void_entry(ledger_id, reason, user_id=None):
         if entry['is_voided']:
             return False
 
-        # Mark as voided (but don't recalculate - voided entries still count in balance)
         cursor.execute('''
             UPDATE ledger SET is_voided = 1, voided_by = ?, voided_at = ?, void_reason = ?
             WHERE id = ?
@@ -637,7 +775,6 @@ def unvoid_entry(ledger_id, user_id=None):
         if not entry['is_voided']:
             return False
 
-        # Mark as not voided (but don't recalculate - voided entries still count in balance)
         cursor.execute('''
             UPDATE ledger SET is_voided = 0, voided_by = NULL, voided_at = NULL, void_reason = NULL
             WHERE id = ?
@@ -696,30 +833,99 @@ def get_ledger_items(ledger_id):
             items.append(item)
         return items
 
-# ============== REPORTING ==============
 
-def get_total_debt_all():
-    """Get total outstanding debt across all active customers (excludes voided and deleted entries)"""
+def get_unpaid_debts(customer_id):
+    """Get all OPEN and PARTIAL debt entries for a customer (FIFO-aware), with items."""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT COALESCE(SUM(
-                CASE
-                    WHEN l.entry_type IN ('NEW_DEBT', 'ADJUSTMENT') THEN l.amount
-                    WHEN l.entry_type IN ('PAYMENT', 'WRITE_OFF', 'REFUND') THEN -l.amount
-                    ELSE 0
-                END
-            ), 0) as total
+            SELECT l.*, u.full_name as created_by_name
             FROM ledger l
-            JOIN customers c ON l.customer_id = c.id
-            WHERE c.is_active = 1
-            AND l.is_voided = 0
-            AND l.is_deleted = 0
+            LEFT JOIN users u ON l.created_by = u.id
+            WHERE l.customer_id = ? AND l.entry_type = 'NEW_DEBT'
+              AND l.payment_status IN ('OPEN', 'PARTIAL')
+              AND l.is_deleted = 0
+            ORDER BY l.created_at ASC
+        ''', (customer_id,))
+        rows = cursor.fetchall()
+        entries = []
+        for row in rows:
+            entry = dict(row)
+            entry['items'] = get_ledger_items(entry['id'])
+            entries.append(entry)
+        return entries
+
+
+# ============== REPORTING ==============
+
+def get_total_debt_all():
+    """Get total outstanding debt across all active customers.
+    Only sums positive per-customer balances. Credits (PAYMENT/negative balance)
+    reduce or exclude a customer from this sum so they are never added to total owed."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT COALESCE(SUM(sub.customer_balance), 0) as total
+            FROM (
+                SELECT l.customer_id,
+                    SUM(
+                        CASE
+                            WHEN l.entry_type IN ('NEW_DEBT', 'ADJUSTMENT') THEN l.amount
+                            WHEN l.entry_type IN ('PAYMENT', 'WRITE_OFF', 'REFUND') THEN -l.amount
+                            ELSE 0
+                        END
+                    ) as customer_balance
+                FROM ledger l
+                JOIN customers c ON l.customer_id = c.id
+                WHERE c.is_active = 1
+                AND l.is_voided = 0
+                AND l.is_deleted = 0
+                GROUP BY l.customer_id
+                HAVING customer_balance > 0
+            ) sub
         ''')
-        return cursor.fetchone()['total']
+        result = cursor.fetchone()['total']
+        return float(result) if result is not None else 0.0
+
+
+def get_total_payments_all():
+    """Total of all payment entries (CASH, CARD, CHECK, CREDIT, SPLIT).
+    Third-party credit is added here only when you use 'Add Credit' (one PAYMENT row).
+    Using that credit later (e.g. adding a purchase that consumes credit) does not create
+    or remove any PAYMENT row, so this total does not change — credit is counted once."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT COALESCE(SUM(amount), 0) as total
+            FROM ledger
+            WHERE entry_type = 'PAYMENT'
+            AND is_voided = 0
+            AND is_deleted = 0
+        ''', ())
+        result = cursor.fetchone()['total']
+        return float(result) if result is not None else 0.0
+
+
+def get_total_payments_for_date(date):
+    """Payments collected on a given date (YYYY-MM-DD). Includes third-party credit
+    only when it was added on that date; using credit does not create new PAYMENT rows."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT COALESCE(SUM(amount), 0) as total
+            FROM ledger
+            WHERE entry_type = 'PAYMENT'
+            AND is_voided = 0
+            AND is_deleted = 0
+            AND DATE(created_at) = ?
+        ''', (date,))
+        result = cursor.fetchone()['total']
+        return float(result) if result is not None else 0.0
+
 
 def get_customers_with_debt():
-    """Get all customers with their current balance, total debt, and total paid"""
+    """Get all customers with their current balance, total debt, and total paid.
+    Balance (debt) excludes voided/deleted so it matches total owed and credit behavior."""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
@@ -731,17 +937,19 @@ def get_customers_with_debt():
                             WHEN entry_type IN ('PAYMENT', 'WRITE_OFF', 'REFUND') THEN -amount
                             ELSE 0
                         END
-                    ) FROM ledger WHERE customer_id = c.id
+                    ) FROM ledger
+                    WHERE customer_id = c.id AND is_voided = 0 AND is_deleted = 0
                 ), 0) as debt,
                 COALESCE((
                     SELECT SUM(amount) FROM ledger 
-                    WHERE customer_id = c.id AND entry_type = 'NEW_DEBT'
+                    WHERE customer_id = c.id AND entry_type = 'NEW_DEBT' AND is_voided = 0 AND is_deleted = 0
                 ), 0) as total_debt_added,
                 COALESCE((
                     SELECT SUM(amount) FROM ledger 
-                    WHERE customer_id = c.id AND entry_type = 'PAYMENT'
+                    WHERE customer_id = c.id AND entry_type = 'PAYMENT' AND is_voided = 0 AND is_deleted = 0
                 ), 0) as total_paid,
                 (SELECT MIN(created_at) FROM ledger WHERE customer_id = c.id AND entry_type = 'NEW_DEBT'
+                    AND is_voided = 0 AND is_deleted = 0
                     AND id NOT IN (SELECT reference_id FROM ledger WHERE reference_id IS NOT NULL)) as oldest_debt_date
             FROM customers c
             WHERE c.is_active = 1
@@ -754,50 +962,51 @@ def get_customers_with_debt_and_items():
     with get_db() as conn:
         cursor = conn.cursor()
         
-        # Get only customers with outstanding debt (debt > 0)
+        # Get only customers with outstanding debt (debt > 0); balance excludes voided/deleted
         cursor.execute('''
             SELECT * FROM (
                 SELECT c.*,
                     COALESCE((
                         SELECT SUM(
                             CASE
-                                WHEN entry_type IN ('NEW_DEBT') AND is_voided = 0 THEN amount
-                                WHEN entry_type IN ('PAYMENT', 'WRITE_OFF', 'REFUND') AND is_voided = 0 THEN -amount
-                                WHEN entry_type = 'ADJUSTMENT' AND is_voided = 0 THEN amount
+                                WHEN entry_type IN ('NEW_DEBT') AND is_voided = 0 AND is_deleted = 0 THEN amount
+                                WHEN entry_type IN ('PAYMENT', 'WRITE_OFF', 'REFUND') AND is_voided = 0 AND is_deleted = 0 THEN -amount
+                                WHEN entry_type = 'ADJUSTMENT' AND is_voided = 0 AND is_deleted = 0 THEN amount
                                 ELSE 0
                             END
-                        ) FROM ledger WHERE customer_id = c.id
+                        ) FROM ledger WHERE customer_id = c.id AND is_voided = 0 AND is_deleted = 0
                     ), 0) as debt,
                     COALESCE((
                         SELECT SUM(amount) FROM ledger 
-                        WHERE customer_id = c.id AND entry_type = 'PAYMENT' AND is_voided = 0
+                        WHERE customer_id = c.id AND entry_type = 'PAYMENT' AND is_voided = 0 AND is_deleted = 0
                     ), 0) as total_paid,
                     COALESCE((
                         SELECT SUM(amount) FROM ledger 
-                        WHERE customer_id = c.id AND entry_type = 'NEW_DEBT' AND is_voided = 0
+                        WHERE customer_id = c.id AND entry_type = 'NEW_DEBT' AND is_voided = 0 AND is_deleted = 0
                     ), 0) as total_debt_added
                 FROM customers c
                 WHERE c.is_active = 1
                 AND EXISTS (
                     SELECT 1 FROM ledger l
-                    WHERE l.customer_id = c.id
-                    AND l.is_voided = 0
+                    WHERE l.customer_id = c.id AND l.is_voided = 0 AND l.is_deleted = 0
                 )
             ) WHERE debt > 0
             ORDER BY name
         ''')
         customers = [dict(row) for row in cursor.fetchall()]
         
-        # Get items for each customer from their debt entries
+        # Get items for each customer from their UNPAID debt entries only (FIFO)
         for customer in customers:
             cursor.execute('''
-                SELECT li.product_name, li.quantity, li.price
+                SELECT li.product_name, li.quantity, li.price,
+                       l.remaining_amount, l.amount as ledger_amount
                 FROM ledger l
                 JOIN ledger_items li ON l.id = li.ledger_id
-                WHERE l.customer_id = ? 
+                WHERE l.customer_id = ?
                 AND l.entry_type = 'NEW_DEBT'
                 AND l.is_voided = 0
-                ORDER BY l.created_at DESC
+                AND l.payment_status IN ('OPEN', 'PARTIAL')
+                ORDER BY l.created_at ASC
             ''', (customer['id'],))
             
             items = []
@@ -823,29 +1032,30 @@ def get_recent_active_customers(limit=4):
                 COALESCE((
                     SELECT SUM(
                         CASE
-                            WHEN entry_type IN ('NEW_DEBT') AND is_voided = 0 THEN amount
-                            WHEN entry_type IN ('PAYMENT', 'WRITE_OFF', 'REFUND') AND is_voided = 0 THEN -amount
-                            WHEN entry_type = 'ADJUSTMENT' AND is_voided = 0 THEN amount
+                            WHEN entry_type IN ('NEW_DEBT') AND is_voided = 0 AND is_deleted = 0 THEN amount
+                            WHEN entry_type IN ('PAYMENT', 'WRITE_OFF', 'REFUND') AND is_voided = 0 AND is_deleted = 0 THEN -amount
+                            WHEN entry_type = 'ADJUSTMENT' AND is_voided = 0 AND is_deleted = 0 THEN amount
                             ELSE 0
                         END
                     ) FROM ledger WHERE customer_id = c.id
                 ), 0) as debt,
                 COALESCE((
                     SELECT SUM(amount) FROM ledger 
-                    WHERE customer_id = c.id AND entry_type = 'NEW_DEBT' AND is_voided = 0
+                    WHERE customer_id = c.id AND entry_type = 'NEW_DEBT' AND is_voided = 0 AND is_deleted = 0
                 ), 0) as total_debt_added,
                 COALESCE((
                     SELECT SUM(amount) FROM ledger 
-                    WHERE customer_id = c.id AND entry_type = 'PAYMENT' AND is_voided = 0
+                    WHERE customer_id = c.id AND entry_type = 'PAYMENT' AND is_voided = 0 AND is_deleted = 0
                 ), 0) as total_paid,
                 (SELECT MAX(created_at) FROM ledger 
-                 WHERE customer_id = c.id AND is_voided = 0) as last_activity_date
+                 WHERE customer_id = c.id AND is_voided = 0 AND is_deleted = 0) as last_activity_date
             FROM customers c
             WHERE c.is_active = 1
             AND EXISTS (
                 SELECT 1 FROM ledger l
                 WHERE l.customer_id = c.id
                 AND l.is_voided = 0
+                AND l.is_deleted = 0
             )
             ORDER BY last_activity_date DESC
             LIMIT ?
@@ -865,23 +1075,23 @@ def get_recent_active_customers(limit=4):
                         COALESCE((
                             SELECT SUM(
                                 CASE
-                                    WHEN entry_type IN ('NEW_DEBT') AND is_voided = 0 THEN amount
-                                    WHEN entry_type IN ('PAYMENT', 'WRITE_OFF', 'REFUND') AND is_voided = 0 THEN -amount
-                                    WHEN entry_type = 'ADJUSTMENT' AND is_voided = 0 THEN amount
+                                    WHEN entry_type IN ('NEW_DEBT') AND is_voided = 0 AND is_deleted = 0 THEN amount
+                                    WHEN entry_type IN ('PAYMENT', 'WRITE_OFF', 'REFUND') AND is_voided = 0 AND is_deleted = 0 THEN -amount
+                                    WHEN entry_type = 'ADJUSTMENT' AND is_voided = 0 AND is_deleted = 0 THEN amount
                                     ELSE 0
                                 END
                             ) FROM ledger WHERE customer_id = c.id
                         ), 0) as debt,
                         COALESCE((
                             SELECT SUM(amount) FROM ledger 
-                            WHERE customer_id = c.id AND entry_type = 'NEW_DEBT' AND is_voided = 0
+                            WHERE customer_id = c.id AND entry_type = 'NEW_DEBT' AND is_voided = 0 AND is_deleted = 0
                         ), 0) as total_debt_added,
                         COALESCE((
                             SELECT SUM(amount) FROM ledger 
-                            WHERE customer_id = c.id AND entry_type = 'PAYMENT' AND is_voided = 0
+                            WHERE customer_id = c.id AND entry_type = 'PAYMENT' AND is_voided = 0 AND is_deleted = 0
                         ), 0) as total_paid,
                         COALESCE((SELECT MAX(created_at) FROM ledger 
-                         WHERE customer_id = c.id AND is_voided = 0), c.created_at) as last_activity_date
+                         WHERE customer_id = c.id AND is_voided = 0 AND is_deleted = 0), c.created_at) as last_activity_date
                     FROM customers c
                     WHERE c.is_active = 1
                     AND c.id NOT IN ({placeholders})
@@ -895,23 +1105,23 @@ def get_recent_active_customers(limit=4):
                         COALESCE((
                             SELECT SUM(
                                 CASE
-                                    WHEN entry_type IN ('NEW_DEBT') AND is_voided = 0 THEN amount
-                                    WHEN entry_type IN ('PAYMENT', 'WRITE_OFF', 'REFUND') AND is_voided = 0 THEN -amount
-                                    WHEN entry_type = 'ADJUSTMENT' AND is_voided = 0 THEN amount
+                                    WHEN entry_type IN ('NEW_DEBT') AND is_voided = 0 AND is_deleted = 0 THEN amount
+                                    WHEN entry_type IN ('PAYMENT', 'WRITE_OFF', 'REFUND') AND is_voided = 0 AND is_deleted = 0 THEN -amount
+                                    WHEN entry_type = 'ADJUSTMENT' AND is_voided = 0 AND is_deleted = 0 THEN amount
                                     ELSE 0
                                 END
                             ) FROM ledger WHERE customer_id = c.id
                         ), 0) as debt,
                         COALESCE((
                             SELECT SUM(amount) FROM ledger 
-                            WHERE customer_id = c.id AND entry_type = 'NEW_DEBT' AND is_voided = 0
+                            WHERE customer_id = c.id AND entry_type = 'NEW_DEBT' AND is_voided = 0 AND is_deleted = 0
                         ), 0) as total_debt_added,
                         COALESCE((
                             SELECT SUM(amount) FROM ledger 
-                            WHERE customer_id = c.id AND entry_type = 'PAYMENT' AND is_voided = 0
+                            WHERE customer_id = c.id AND entry_type = 'PAYMENT' AND is_voided = 0 AND is_deleted = 0
                         ), 0) as total_paid,
                         COALESCE((SELECT MAX(created_at) FROM ledger 
-                         WHERE customer_id = c.id AND is_voided = 0), c.created_at) as last_activity_date
+                         WHERE customer_id = c.id AND is_voided = 0 AND is_deleted = 0), c.created_at) as last_activity_date
                     FROM customers c
                     WHERE c.is_active = 1
                     ORDER BY c.created_at DESC
@@ -975,27 +1185,20 @@ def get_daily_reconciliation(date=None):
     with get_db() as conn:
         cursor = conn.cursor()
 
-        # Debt added today (exclude voided and deleted entries)
+        # Debt added today: only the net amount not covered by credit (so using credit doesn't inflate "Today's Debt Added")
         cursor.execute('''
-            SELECT COALESCE(SUM(amount), 0) as total
+            SELECT COALESCE(SUM(COALESCE(net_debt_at_creation, amount)), 0) as total
             FROM ledger
             WHERE entry_type = 'NEW_DEBT'
             AND is_voided = 0
             AND is_deleted = 0
             AND DATE(created_at) = ?
         ''', (date,))
-        debt_added = cursor.fetchone()['total']
+        row = cursor.fetchone()
+        debt_added = float(row['total']) if row and row['total'] is not None else 0.0
 
-        # Payments collected today (exclude voided and deleted entries)
-        cursor.execute('''
-            SELECT COALESCE(SUM(amount), 0) as total
-            FROM ledger
-            WHERE entry_type = 'PAYMENT'
-            AND is_voided = 0
-            AND is_deleted = 0
-            AND DATE(created_at) = ?
-        ''', (date,))
-        payments_collected = cursor.fetchone()['total']
+        # Payments collected today (includes credit only when added today; using credit doesn't add rows)
+        payments_collected = get_total_payments_for_date(date)
 
         # Write-offs today (exclude voided and deleted entries)
         cursor.execute('''
@@ -1097,26 +1300,28 @@ def get_overdue_customers(days=30):
         cutoff_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
 
         cursor.execute('''
-            SELECT DISTINCT c.*,
-                (SELECT SUM(
-                    CASE
-                        WHEN entry_type IN ('NEW_DEBT') AND is_voided = 0 THEN amount
-                        WHEN entry_type IN ('PAYMENT', 'WRITE_OFF', 'REFUND') AND is_voided = 0 THEN -amount
-                        WHEN entry_type = 'ADJUSTMENT' AND is_voided = 0 THEN amount
-                        ELSE 0
-                    END
-                ) FROM ledger WHERE customer_id = c.id) as debt,
-                (SELECT MIN(created_at) FROM ledger WHERE customer_id = c.id AND entry_type = 'NEW_DEBT' AND is_voided = 0) as oldest_debt
-            FROM customers c
-            WHERE c.is_active = 1
-            AND EXISTS (
-                SELECT 1 FROM ledger l
-                WHERE l.customer_id = c.id
-                AND l.entry_type = 'NEW_DEBT'
-                AND l.is_voided = 0
-                AND DATE(l.created_at) < ?
-            )
-            HAVING debt > 0
+            SELECT * FROM (
+                SELECT DISTINCT c.*,
+                    (SELECT COALESCE(SUM(
+                        CASE
+                            WHEN entry_type IN ('NEW_DEBT') AND is_voided = 0 AND is_deleted = 0 THEN amount
+                            WHEN entry_type IN ('PAYMENT', 'WRITE_OFF', 'REFUND') AND is_voided = 0 AND is_deleted = 0 THEN -amount
+                            WHEN entry_type = 'ADJUSTMENT' AND is_voided = 0 AND is_deleted = 0 THEN amount
+                            ELSE 0
+                        END
+                    ), 0) FROM ledger WHERE customer_id = c.id) as debt,
+                    (SELECT MIN(created_at) FROM ledger WHERE customer_id = c.id AND entry_type = 'NEW_DEBT' AND is_voided = 0 AND is_deleted = 0) as oldest_debt
+                FROM customers c
+                WHERE c.is_active = 1
+                AND EXISTS (
+                    SELECT 1 FROM ledger l
+                    WHERE l.customer_id = c.id
+                    AND l.entry_type = 'NEW_DEBT'
+                    AND l.is_voided = 0
+                    AND l.is_deleted = 0
+                    AND DATE(l.created_at) < ?
+                )
+            ) WHERE debt > 0
             ORDER BY oldest_debt ASC
         ''', (cutoff_date,))
         return [dict(row) for row in cursor.fetchall()]
@@ -1321,7 +1526,10 @@ def update_debt_entry(ledger_id, items, notes=None):
         
         # Recalculate all balances after this entry
         recalculate_balances_after_entry(customer_id, ledger_id, amount_diff, conn)
-        
+
+        # Recalculate FIFO for this customer
+        _recalculate_customer_fifo(cursor, customer_id)
+
         conn.commit()
 
 def update_payment_entry(ledger_id, amount, notes=None):
@@ -1347,7 +1555,10 @@ def update_payment_entry(ledger_id, amount, notes=None):
         
         # Recalculate all balances after this entry
         recalculate_balances_after_entry(customer_id, ledger_id, amount_diff, conn)
-        
+
+        # Recalculate FIFO for this customer
+        _recalculate_customer_fifo(cursor, customer_id)
+
         conn.commit()
 
 def recalculate_all_customer_balances(customer_id, conn):
@@ -1436,7 +1647,7 @@ def _recalculate_balances(customer_id, ledger_id, conn):
         cursor.execute('UPDATE ledger SET balance_after = ? WHERE id = ?', (current_balance, row['id']))
 
 def delete_ledger_entry(ledger_id):
-    """Mark a ledger entry as deleted (hidden from UI but still counts in balance)"""
+    """Mark a ledger entry as deleted (hidden from UI and excluded from balance calculations)"""
     with get_db() as conn:
         cursor = conn.cursor()
         
@@ -1446,7 +1657,6 @@ def delete_ledger_entry(ledger_id):
         if not result:
             return False
         
-        # Mark as deleted instead of actually deleting (keeps balance intact)
         cursor.execute('''
             UPDATE ledger 
             SET is_deleted = 1, deleted_at = ?
@@ -1547,7 +1757,7 @@ def get_customers_with_debt_by_date_range(start_date, end_date, customer_id=None
         cursor.execute(base_query, params)
         customers = [dict(row) for row in cursor.fetchall()]
         
-        # Get items for each customer from their debt entries in the date range
+        # Get items for each customer from their UNPAID debt entries in the date range (FIFO)
         for customer in customers:
             cursor.execute('''
                 SELECT li.product_name, li.price, li.quantity
@@ -1557,8 +1767,9 @@ def get_customers_with_debt_by_date_range(start_date, end_date, customer_id=None
                 AND l.entry_type = 'NEW_DEBT'
                 AND l.is_voided = 0
                 AND l.is_deleted = 0
+                AND l.payment_status IN ('OPEN', 'PARTIAL')
                 AND DATE(l.created_at) BETWEEN ? AND ?
-                ORDER BY l.created_at DESC
+                ORDER BY l.created_at ASC
             ''', (customer['id'], start_date, end_date))
             customer['items'] = [dict(row) for row in cursor.fetchall()]
         
@@ -1667,9 +1878,9 @@ def use_donation(donation_id, customer_id, amount, notes=None):
         cursor.execute('''
             SELECT COALESCE(SUM(
                 CASE
-                    WHEN entry_type IN ('NEW_DEBT') AND is_voided = 0 THEN amount
-                    WHEN entry_type IN ('PAYMENT', 'WRITE_OFF', 'REFUND') AND is_voided = 0 THEN -amount
-                    WHEN entry_type = 'ADJUSTMENT' AND is_voided = 0 THEN amount
+                    WHEN entry_type IN ('NEW_DEBT') AND is_voided = 0 AND is_deleted = 0 THEN amount
+                    WHEN entry_type IN ('PAYMENT', 'WRITE_OFF', 'REFUND') AND is_voided = 0 AND is_deleted = 0 THEN -amount
+                    WHEN entry_type = 'ADJUSTMENT' AND is_voided = 0 AND is_deleted = 0 THEN amount
                     ELSE 0
                 END
             ), 0) as balance

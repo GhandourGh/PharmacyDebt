@@ -2627,8 +2627,9 @@ tr.voided td {
 }
 
 .profile-actions .btn-sm {
-    padding: 0.6rem 1rem;
+    padding: 0.65rem 1.1rem;
     font-size: 0.8rem;
+    white-space: nowrap;
 }
 
 .profile-actions .btn-debt,
@@ -2691,6 +2692,30 @@ tr.voided td {
     color: #64748b !important;
 }
 
+/* Credit customer styles - only the badge is green */
+.profile-debt-badge-credit {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%) !important;
+    border-color: #86efac !important;
+}
+
+.profile-debt-badge-credit .debt-label {
+    color: #15803d !important;
+}
+
+.profile-debt-badge-credit .debt-amount {
+    color: #16a34a !important;
+}
+
+/* Use Credit button style (green) */
+/* Small subtitle under button text */
+.btn-subtitle {
+    display: block;
+    font-size: 0.6rem;
+    opacity: 0.85;
+    margin-top: 1px;
+    font-weight: 400;
+}
+
 /* Responsive Profile Cards */
 @media (max-width: 640px) {
     .customer-cards-grid {
@@ -2749,79 +2774,169 @@ tr.voided td {
 
 @media print {
 
-    .navbar, .btn, .quick-actions, .search-container, .modal-overlay, .history-filters, .btn-icon-delete, .profile-card-menu, .page-header .btn-group {
+    /* Receipt-only print: clean A5 page, no app UI */
+    body {
+        background: #fff !important;
+    }
+
+    /* Never print notifications, toasts, or flash messages */
+    .alert,
+    .toast-container,
+    .toast {
+        display: none !important;
+        visibility: hidden !important;
+    }
+
+    /* Show only the print receipt block; hide rest of page */
+    .no-print {
+        display: none !important;
+    }
+    .print-receipt-only {
+        display: block !important;
+        width: 100%;
+        max-width: none;
+    }
+
+    /* Dedicated A5 receipt template – own layout, no app UI */
+    .print-receipt-only .receipt-page {
+        width: 100%;
+        max-width: 13.25cm; /* A5 content width (14.85cm - 1.6cm margin) */
+        margin: 0 auto;
+        padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        font-size: 11pt;
+        line-height: 1.4;
+        color: #1a202c;
+        background: #fff;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .print-receipt-only .receipt-header {
+        text-align: center;
+        padding-bottom: 0.6cm;
+        border-bottom: 2px solid #2c5282;
+        margin-bottom: 0.5cm;
+    }
+    .print-receipt-only .receipt-brand {
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: #2c5282;
+        letter-spacing: 0.02em;
+        margin: 0;
+    }
+    .print-receipt-only .receipt-subtitle {
+        font-size: 0.75rem;
+        color: #718096;
+        margin: 0.2rem 0 0;
+    }
+    .print-receipt-only .receipt-customer {
+        margin-bottom: 0.5cm;
+    }
+    .print-receipt-only .receipt-customer-name {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #1a202c;
+        margin: 0 0 0.2rem;
+    }
+    .print-receipt-only .receipt-customer-line {
+        font-size: 0.7rem;
+        color: #4a5568;
+        margin: 0.1rem 0;
+    }
+    .print-receipt-only .receipt-summary {
+        margin-bottom: 0.5cm;
+    }
+    .print-receipt-only .receipt-summary-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.75rem;
+        margin-bottom: 0.35rem;
+    }
+    .print-receipt-only .receipt-summary-table td {
+        padding: 0.35rem 0.5rem;
+        border: 1px solid #e2e8f0;
+    }
+    .print-receipt-only .receipt-summary-label {
+        background: #f7fafc;
+        font-weight: 600;
+        color: #4a5568;
+    }
+    .print-receipt-only .receipt-summary-value {
+        text-align: right;
+        font-weight: 700;
+        color: #c53030;
+    }
+    .print-receipt-only .receipt-debt-left {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #c53030;
+        text-align: center;
+        margin: 0.25rem 0 0;
+    }
+    .print-receipt-only .receipt-debt-left.receipt-credit,
+    .print-receipt-only .receipt-summary-value.receipt-credit {
+        color: #16a34a !important;
+    }
+    .print-receipt-only .receipt-items {
+        margin-bottom: 0.5cm;
+    }
+    .print-receipt-only .receipt-section-title {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #2c5282;
+        margin: 0 0 0.3rem;
+    }
+    .print-receipt-only .receipt-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.7rem;
+    }
+    .print-receipt-only .receipt-th {
+        padding: 0.35rem 0.4rem;
+        text-align: left;
+        font-weight: 700;
+        background: #2c5282;
+        color: #fff;
+        border: 1px solid #2c5282;
+    }
+    .print-receipt-only .receipt-th-amount {
+        text-align: right;
+    }
+    .print-receipt-only .receipt-td {
+        padding: 0.35rem 0.4rem;
+        border: 1px solid #e2e8f0;
+    }
+    .print-receipt-only .receipt-tr:nth-child(even) {
+        background: #fafafa;
+    }
+    .print-receipt-only .receipt-td-amount {
+        text-align: right;
+        font-weight: 600;
+    }
+    .print-receipt-only .receipt-empty {
+        font-size: 0.75rem;
+        color: #718096;
+        margin: 0.25rem 0;
+    }
+    .print-receipt-only .receipt-footer {
+        font-size: 0.65rem;
+        color: #a0aec0;
+        text-align: center;
+        margin-top: 0.6cm;
+        padding-top: 0.3cm;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    /* Hide navbar and app chrome so only receipt is visible */
+    .navbar, .nav-wrapper-new, .btn, .quick-actions, .search-container, .modal-overlay, .history-filters, .btn-icon-delete, .profile-card-menu, .page-header .btn-group {
         display: none !important;
     }
 
-    /* Ensure history section is visible - override any hiding */
-    .card.card-info {
-        display: block !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-    }
-
-    .table-container {
-        display: block !important;
-        visibility: visible !important;
-    }
-
-    .history-table {
-        display: table !important;
-        visibility: visible !important;
+    /* When only receipt is shown: reset main container so receipt has full A5 width */
+    main.container {
+        max-width: none !important;
+        padding: 0 !important;
         width: 100% !important;
-    }
-
-    .history-table thead {
-        display: table-header-group !important;
-    }
-
-    .history-table tbody {
-        display: table-row-group !important;
-    }
-
-    .history-table tr {
-        display: table-row !important;
-    }
-
-    .history-table th,
-    .history-table td {
-        display: table-cell !important;
-    }
-
-    .history-row-data {
-        display: table-row !important;
-        visibility: visible !important;
-    }
-
-    /* Show all history rows in print, even if filtered */
-    .history-row-data.filter-hidden {
-        display: table-row !important;
-        visibility: visible !important;
-    }
-
-    /* Hide empty state message in print */
-    .empty-state,
-    #noResultsMessage {
-        display: none !important;
-    }
-
-    /* Ensure history card header is visible */
-    .card.card-info .card-header {
-        display: block !important;
-        visibility: visible !important;
-    }
-
-    /* Hide the last column with action buttons but keep the table structure */
-    .history-table th:last-child,
-    .history-table td:last-child {
-        display: none !important;
-    }
-
-    /* Make sure history section is always visible */
-    .card.card-info:has(.history-table) {
-        display: block !important;
-        visibility: visible !important;
-        page-break-inside: avoid;
     }
 
     /* Hide menu buttons and navigation links in navbar when printing */

@@ -93,7 +93,7 @@
 </div>
 <div class="customer-cards-grid" id="customerCardsGrid">
     {% for customer in all_customers %}
-    <div class="profile-card {% if customer.debt == 0 %}profile-card-no-debt{% endif %} {% if customer.id not in recent_customer_ids %}customer-card-hidden{% endif %}" data-customer-name="{{ customer.name|lower }}" data-customer-phone="{{ (customer.phone or '')|lower }}">
+    <div class="profile-card {% if customer.debt == 0 and not customer.has_credit %}profile-card-no-debt{% endif %} {% if customer.id not in recent_customer_ids %}customer-card-hidden{% endif %}" data-customer-name="{{ customer.name|lower }}" data-customer-phone="{{ (customer.phone or '')|lower }}">
         <div class="profile-card-menu">
             <button class="profile-menu-btn" onclick="toggleProfileMenu(this)">
                 <i data-lucide="more-horizontal" style="width: 20px; height: 20px;"></i>
@@ -120,7 +120,7 @@
             </div>
         </div>
         <div class="profile-card-content">
-            <div class="profile-avatar-large {% if customer.debt == 0 %}profile-avatar-gray{% endif %}">
+            <div class="profile-avatar-large {% if customer.debt == 0 and not customer.has_credit %}profile-avatar-gray{% endif %}">
                 {% if customer.profile_image %}
                 <img src="{{ url_for('static', filename='uploads/' + customer.profile_image) }}" alt="{{ customer.name }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                 <div style="display: none; width: 100%; height: 100%; align-items: center; justify-content: center; background: linear-gradient(135deg, #3b82f6, #2563eb); border-radius: 50%; color: white; font-size: 32px; font-weight: bold;">
@@ -131,27 +131,28 @@
                 {% endif %}
             </div>
             <a href="{{ url_for('customer_detail', customer_id=customer.id) }}" style="text-decoration: none;">
-                <h3 class="profile-name {% if customer.debt == 0 %}profile-name-gray{% endif %}">{{ customer.name }}</h3>
+                <h3 class="profile-name {% if customer.debt == 0 and not customer.has_credit %}profile-name-gray{% endif %}">{{ customer.name }}</h3>
             </a>
             {% if customer.phone %}
-            <span class="profile-phone {% if customer.debt == 0 %}profile-phone-gray{% endif %}">
+            <span class="profile-phone {% if customer.debt == 0 and not customer.has_credit %}profile-phone-gray{% endif %}">
                 <i data-lucide="phone" style="width: 14px; height: 14px;"></i>
                 {{ customer.phone }}
             </span>
             {% else %}
-            <span class="profile-phone profile-phone-empty {% if customer.debt == 0 %}profile-phone-gray{% endif %}">No phone</span>
+            <span class="profile-phone profile-phone-empty {% if customer.debt == 0 and not customer.has_credit %}profile-phone-gray{% endif %}">No phone</span>
             {% endif %}
-            <div class="profile-debt-badge {% if customer.debt == 0 %}profile-debt-badge-gray{% endif %}">
-                <span class="debt-label">{% if customer.debt == 0 %}Balance{% else %}Owes{% endif %}</span>
+            <div class="profile-debt-badge {% if customer.has_credit %}profile-debt-badge-credit{% elif customer.debt == 0 %}profile-debt-badge-gray{% endif %}">
+                <span class="debt-label">{% if customer.has_credit %}Has Credit{% elif customer.debt == 0 %}Balance{% else %}Owes{% endif %}</span>
                 <span class="debt-amount">${{ "%.2f"|format(customer.display_debt) }}</span>
             </div>
             <div class="profile-actions">
                 <button type="button" class="btn btn-debt btn-sm" data-customer-id="{{ customer.id }}" data-customer-name="{{ customer.name }}">
                     <i data-lucide="plus-circle" style="width: 14px; height: 14px;"></i>
                     Add Debt
+                    {% if customer.has_credit %}<span class="btn-subtitle">(use credit)</span>{% endif %}
                 </button>
                 <button type="button" class="btn btn-success btn-sm" data-customer-id="{{ customer.id }}" data-customer-name="{{ customer.name }}" data-action="pay">
-                    <i data-lucide="banknote" style="width: 14px; height: 14px;"></i>
+                    {% if not customer.has_credit %}<i data-lucide="banknote" style="width: 14px; height: 14px;"></i>{% endif %}
                     Pay
                 </button>
             </div>
@@ -432,9 +433,9 @@
 {% endblock %}
 
 {% block scripts %}
+<script type="application/json" id="products-data">{{ products | tojson }}</script>
 <script>
-    // Pass products data to JavaScript
-    window.productsData = {{ products | tojson }};
+    window.productsData = JSON.parse(document.getElementById('products-data').textContent || '[]');
     let quickItemCount = 0;
     let currentQuickCustomerId = null;
 

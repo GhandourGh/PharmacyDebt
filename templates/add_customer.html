@@ -75,7 +75,10 @@
     </form>
 </div>
 
+<script type="application/json" id="customer-names-data">{{ customer_names|tojson }}</script>
 <script>
+var customerNames = JSON.parse(document.getElementById('customer-names-data').textContent || '[]');
+
 function previewImage(event) {
     const file = event.target.files[0];
     const errorEl = document.getElementById('imageError');
@@ -128,8 +131,6 @@ function clearError(errorId, inputId) {
     errorEl.classList.remove('show');
     if (inputEl) inputEl.classList.remove('input-error');
 }
-
-const customerNames = {{ customer_names|tojson }};
 
 function showSuggestions() {
     const input = document.getElementById('customerName');

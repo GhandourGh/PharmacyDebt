@@ -97,7 +97,8 @@
                     Net Change
                 </div>
                 {% set net_change = (daily_stats.total_debt or 0) - (daily_stats.total_payments or 0) %}
-                <div class="stat-value" style="color: {% if net_change > 0 %}#dc2626{% else %}#16a34a{% endif %};">
+                {% set net_change_class = 'stat-value-net-negative' if net_change > 0 else 'stat-value-net-positive' %}
+                <div class="stat-value {{ net_change_class }}">
                     {% if net_change > 0 %}+{% endif %}${{ "%.2f"|format(net_change) }}
                 </div>
             </div>
@@ -169,4 +170,8 @@
         <span><strong>Daily Report:</strong> This shows all financial activity for the selected date. Use this for end-of-day reconciliation to ensure all transactions are accounted for.</span>
     </p>
 </div>
+<style>
+.stat-value-net-positive { color: #16a34a; }
+.stat-value-net-negative { color: #dc2626; }
+</style>
 {% endblock %}

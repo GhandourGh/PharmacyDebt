@@ -38,19 +38,25 @@ def dashboard():
     daily_stats = db.get_daily_reconciliation()
     products = db.get_all_products()
     
-    # Fix negative zero display issue - ensure zero balances show as positive
+    # Fix negative zero display issue and detect credit customers
     for customer in all_customers:
-        if customer.get('debt', 0) <= 0:
-            customer['display_debt'] = abs(customer.get('debt', 0))
+        debt = customer.get('debt', 0)
+        if debt < 0:
+            customer['has_credit'] = True
+            customer['display_debt'] = abs(debt)
         else:
-            customer['display_debt'] = customer.get('debt', 0)
-    
+            customer['has_credit'] = False
+            customer['display_debt'] = debt
+
     for customer in recent_customers:
-        if customer.get('debt', 0) <= 0:
-            customer['display_debt'] = abs(customer.get('debt', 0))
+        debt = customer.get('debt', 0)
+        if debt < 0:
+            customer['has_credit'] = True
+            customer['display_debt'] = abs(debt)
         else:
-            customer['display_debt'] = customer.get('debt', 0)
-    
+            customer['has_credit'] = False
+            customer['display_debt'] = debt
+
     # Count customers with debts (debt > 0)
     customers_with_debt_count = len([c for c in all_customers if c.get('debt', 0) > 0])
 
@@ -231,9 +237,9 @@ def add_customer():
                         flash(f'Image upload warning: {e.message}', 'warning')
                         # Continue without profile image
 
-            db.add_customer(name, phone, notes=notes, profile_image=profile_image)
+            customer_id = db.add_customer(name, phone, notes=notes, profile_image=profile_image)
             flash(f'Customer "{name}" added successfully.', 'success')
-            return redirect(url_for('customers'))
+            return redirect(url_for('customer_detail', customer_id=customer_id))
 
         except ValidationError as e:
             flash(e.message, 'error')
@@ -275,14 +281,29 @@ def customer_detail(customer_id):
     # Ensure zero balance is displayed as positive (fixes -0.00 issue)
     display_debt = abs(total_debt) if total_debt <= 0 else total_debt
 
+    # Get unpaid debts for FIFO display
+    unpaid_debts = db.get_unpaid_debts(customer_id)
+
+    # Receipt/print: only OPEN/PARTIAL purchases that still have a balance due (exclude $0 / credit-covered)
+    receipt_ledger = []
+    for e in ledger:
+        if e.get('is_voided') or e.get('entry_type') != 'NEW_DEBT' or e.get('payment_status') not in ('OPEN', 'PARTIAL'):
+            continue
+        remaining = e.get('remaining_amount') if e.get('remaining_amount') is not None else e.get('amount', 0)
+        if (remaining or 0) <= 0:
+            continue
+        receipt_ledger.append(e)
+
     return render_template('customer_detail.html',
                          customer=customer,
                          ledger=ledger,
+                         receipt_ledger=receipt_ledger,
                          total_debt=total_debt,
                          display_debt=display_debt,
                          total_paid=total_paid,
                          total_original=total_original,
-                         products=products)
+                         products=products,
+                         unpaid_debts=unpaid_debts)
 
 @app.route('/customers/<int:customer_id>/edit', methods=['GET', 'POST'])
 def edit_customer(customer_id):
@@ -406,8 +427,21 @@ def add_debt(customer_id):
             except ValueError:
                 raise ValidationError('Invalid date format')
 
+        # Check if customer has credit before adding debt (for flash message)
+        current_balance = db.get_customer_balance(customer_id)
         db.add_debt(customer_id, validated_items, notes=notes, user_id=None, debt_date=debt_date)
-        flash(f'Debt of ${total:.2f} added.', 'success')
+
+        if current_balance < 0:
+            credit_available = abs(current_balance)
+            credit_used = min(credit_available, total)
+            remaining_credit = round(credit_available - credit_used, 2)
+            actual_debt = round(total - credit_used, 2)
+            if actual_debt <= 0:
+                flash(f'${total:.2f} purchase covered by credit. Remaining credit: ${remaining_credit:.2f}', 'success')
+            else:
+                flash(f'${credit_used:.2f} covered by credit. Remaining debt: ${actual_debt:.2f}', 'success')
+        else:
+            flash(f'Debt of ${total:.2f} added.', 'success')
         return redirect(url_for('customer_detail', customer_id=customer_id))
 
     except ValidationError as e:
@@ -880,16 +914,26 @@ def export_customer_pdf(customer_id):
     ledger = db.get_customer_ledger(customer_id, include_voided=False)
     total_debt = db.get_customer_balance(customer_id)
 
-    # Calculate total debts and total payments
-    total_debts = 0
-    total_payments = 0
+    # Printed statement: only OPEN/PARTIAL purchases that still have a balance due (exclude $0 / credit-covered)
+    pdf_ledger = []
     for entry in ledger:
-        if entry.get('entry_type') == 'NEW_DEBT':
-            total_debts += entry.get('amount', 0)
-        elif entry.get('entry_type') == 'PAYMENT':
-            total_payments += abs(entry.get('amount', 0))
+        if entry.get('entry_type') != 'NEW_DEBT' or entry.get('payment_status') not in ('OPEN', 'PARTIAL'):
+            continue
+        remaining = entry.get('remaining_amount') if entry.get('remaining_amount') is not None else entry.get('amount', 0)
+        if (remaining or 0) <= 0:
+            continue
+        pdf_ledger.append(entry)
 
-    pdf_buffer = generate_customer_report(customer, ledger, [], total_debt, total_debts, total_payments)
+    total_remaining = sum(
+        entry.get('remaining_amount', entry.get('amount', 0)) or entry.get('amount', 0)
+        for entry in pdf_ledger
+    )
+
+    pdf_buffer = generate_customer_report(
+        customer, pdf_ledger, [], total_debt,
+        total_debts=total_remaining, total_payments=0,
+        statements_only=True
+    )
 
     filename = f"report_{customer['name']}_{datetime.now().strftime('%Y%m%d')}.pdf"
     return send_file(pdf_buffer, as_attachment=True, download_name=filename, mimetype='application/pdf')
@@ -1043,19 +1087,8 @@ def settings():
     total_debt = db.get_total_debt_all()
     total_donations = db.get_total_donations()
     total_donations_available = db.get_total_donations_available()
-    
-    # Calculate total payments
-    with db.get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT COALESCE(SUM(amount), 0) as total
-            FROM ledger
-            WHERE entry_type = 'PAYMENT'
-            AND is_voided = 0
-            AND is_deleted = 0
-        ''')
-        total_payments = cursor.fetchone()['total']
-    
+    total_payments = db.get_total_payments_all()
+
     system_info = {
         'total_customers': len(customers),
         'total_debt': total_debt,
