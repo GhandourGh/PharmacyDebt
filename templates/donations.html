@@ -8,10 +8,16 @@
         <i data-lucide="heart" class="icon-info"></i>
         Donations
     </h1>
-    <a href="{{ url_for('add_donation') }}" class="btn btn-primary">
-        <i data-lucide="plus"></i>
-        Add Donation
-    </a>
+    <div style="display:flex; gap:0.75rem; align-items:center;">
+        <button type="button" onclick="openAdjustModal()" class="btn btn-sm" style="background:#fef2f2; color:#ef4444; border:1px solid #fca5a5;">
+            <i data-lucide="minus-circle" style="width:16px; height:16px;"></i>
+            Deduct
+        </button>
+        <a href="{{ url_for('add_donation') }}" class="btn btn-primary">
+            <i data-lucide="plus"></i>
+            Add Donation
+        </a>
+    </div>
 </div>
 
 <!-- Summary Cards -->
@@ -19,15 +25,15 @@
     <div class="card" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1px solid #86efac;">
         <div style="display: flex; align-items: center; gap: 0.75rem;">
             <div style="width: 48px; height: 48px; background: #22c55e; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
-                <i data-lucide="heart" style="width: 24px; height: 24px; color: white;"></i>
+                <i data-lucide="wallet" style="width: 24px; height: 24px; color: white;"></i>
             </div>
             <div>
-                <div style="font-size: 0.875rem; color: #166534; font-weight: 500;">Total Donations</div>
-                <div style="font-size: 1.5rem; font-weight: 700; color: #15803d;">${{ "%.2f"|format(total_donations) }}</div>
+                <div style="font-size: 0.875rem; color: #166534; font-weight: 500;">Available Donations</div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: #16a34a;">${{ "%.2f"|format(total_available) }}</div>
             </div>
         </div>
     </div>
-    
+
     <div class="card" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #fcd34d;">
         <div style="display: flex; align-items: center; gap: 0.75rem;">
             <div style="width: 48px; height: 48px; background: #f59e0b; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
@@ -39,15 +45,15 @@
             </div>
         </div>
     </div>
-    
-    <div class="card" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #93c5fd;">
+
+    <div class="card" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #cbd5e1;">
         <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <div style="width: 48px; height: 48px; background: #3b82f6; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
-                <i data-lucide="wallet" style="width: 24px; height: 24px; color: white;"></i>
+            <div style="width: 48px; height: 48px; background: #94a3b8; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                <i data-lucide="heart" style="width: 24px; height: 24px; color: white;"></i>
             </div>
             <div>
-                <div style="font-size: 0.875rem; color: #1e40af; font-weight: 500;">Available</div>
-                <div style="font-size: 1.5rem; font-weight: 700; color: #2563eb;">${{ "%.2f"|format(total_available) }}</div>
+                <div style="font-size: 0.875rem; color: #64748b; font-weight: 500;">Total Donations</div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: #475569;">${{ "%.2f"|format(total_donations) }}</div>
             </div>
         </div>
     </div>
@@ -214,11 +220,70 @@
 </div>
 {% endif %}
 
+<!-- Deduct Modal -->
+<div id="adjustModal" style="display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,0.45); align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:12px; padding:1.75rem; width:100%; max-width:420px; box-shadow:0 20px 60px rgba(0,0,0,0.2); margin:1rem;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.25rem;">
+            <h3 style="font-size:1.1rem; font-weight:700; color:#1e293b; margin:0; display:flex; align-items:center; gap:0.5rem;">
+                <i data-lucide="minus-circle" style="width:18px; height:18px; color:#ef4444;"></i>
+                Deduct from Anonymous Donations
+            </h3>
+            <button onclick="closeAdjustModal()" style="background:none; border:none; cursor:pointer; color:#94a3b8; padding:0.25rem;">
+                <i data-lucide="x" style="width:20px; height:20px;"></i>
+            </button>
+        </div>
+        <p style="font-size:0.875rem; color:#64748b; margin-bottom:1.25rem;">
+            Deducts from anonymous donations automatically, starting from the highest remaining balance.<br>
+            <span style="display:inline-flex; align-items:center; gap:0.3rem; margin-top:0.4rem;">
+                <strong>Anonymous Available:</strong>
+                <span style="color:#2563eb; font-weight:700;">${{ "%.2f"|format(anonymous_available) }}</span>
+            </span>
+        </p>
+        <form id="adjustForm" action="{{ url_for('adjust_donations') }}" method="POST">
+            <div style="margin-bottom:1rem;">
+                <label style="display:block; font-size:0.875rem; font-weight:600; color:#374151; margin-bottom:0.4rem;">Amount to Deduct</label>
+                <input type="number" name="amount" id="adjustAmount" step="0.01" min="0.01" required
+                    style="width:100%; padding:0.6rem 0.75rem; border:1px solid #d1d5db; border-radius:8px; font-size:1rem; outline:none; box-sizing:border-box;"
+                    placeholder="0.00">
+            </div>
+            <div style="margin-bottom:1.5rem;">
+                <label style="display:block; font-size:0.875rem; font-weight:600; color:#374151; margin-bottom:0.4rem;">Reason <span style="font-weight:400; color:#94a3b8;">(optional)</span></label>
+                <input type="text" name="notes" maxlength="500"
+                    style="width:100%; padding:0.6rem 0.75rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem; outline:none; box-sizing:border-box;"
+                    placeholder="e.g. Paid customer cash by mistake">
+            </div>
+            <div style="display:flex; gap:0.75rem; justify-content:flex-end;">
+                <button type="button" onclick="closeAdjustModal()" class="btn btn-sm" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;">
+                    Cancel
+                </button>
+                <button type="submit" class="btn btn-sm" style="background:#ef4444; color:#fff; border:none;">
+                    <i data-lucide="minus-circle" style="width:14px; height:14px;"></i>
+                    Confirm Deduction
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
     lucide.createIcons();
+
+    function openAdjustModal() {
+        document.getElementById('adjustAmount').value = '';
+        document.getElementById('adjustModal').style.display = 'flex';
+        lucide.createIcons();
+    }
+
+    function closeAdjustModal() {
+        document.getElementById('adjustModal').style.display = 'none';
+    }
+
+    document.getElementById('adjustModal').addEventListener('click', function(e) {
+        if (e.target === this) closeAdjustModal();
+    });
 </script>
 {% endblock %}
 

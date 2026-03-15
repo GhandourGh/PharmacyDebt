@@ -995,11 +995,13 @@ def donations():
     total_available = db.get_total_donations_available()
     usage_history = db.get_donation_usage_history()
     
+    anonymous_available = db.get_anonymous_donations_available()
     return render_template('donations.html',
                          donations=donations_list,
                          total_donations=total_donations,
                          total_used=total_used,
                          total_available=total_available,
+                         anonymous_available=anonymous_available,
                          usage_history=usage_history)
 
 @app.route('/donations/add', methods=['GET', 'POST'])
@@ -1025,6 +1027,23 @@ def add_donation():
 
     donor_names = db.get_unique_donor_names()
     return render_template('add_donation.html', donor_names=donor_names)
+
+@app.route('/donations/adjust', methods=['POST'])
+def adjust_donations():
+    try:
+        amount = validate_amount(request.form.get('amount'), 'Adjustment amount')
+        notes = validate_string(request.form.get('notes', ''), 'Notes', required=False, max_length=500)
+        result = db.adjust_donations_anonymous(amount, notes=notes)
+        if result['success']:
+            flash(f'${amount:.2f} deducted from anonymous donations successfully.', 'success')
+        else:
+            flash(result['message'], 'error')
+    except ValidationError as e:
+        flash(e.message, 'error')
+    except Exception as e:
+        flash(f'An unexpected error occurred: {str(e)}', 'error')
+    return redirect(url_for('donations'))
+
 
 @app.route('/donations/<int:donation_id>/use', methods=['GET', 'POST'])
 def use_donation(donation_id):

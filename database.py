@@ -212,6 +212,18 @@ def init_db():
             )
         ''')
 
+        # Manual donation adjustments (e.g. accidental cash-out outside the system)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS donation_adjustments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                donation_id INTEGER NOT NULL,
+                amount REAL NOT NULL,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (donation_id) REFERENCES donations (id)
+            )
+        ''')
+
         # Create default admin user if not exists
         cursor.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
         if cursor.fetchone()[0] == 0:
@@ -1806,16 +1818,13 @@ def get_all_donations():
         cursor = conn.cursor()
         cursor.execute('''
             SELECT d.*,
-                COALESCE((
-                    SELECT SUM(amount_used) 
-                    FROM donation_usage 
-                    WHERE donation_id = d.id
-                ), 0) as amount_used,
-                (d.amount - COALESCE((
-                    SELECT SUM(amount_used) 
-                    FROM donation_usage 
-                    WHERE donation_id = d.id
-                ), 0)) as amount_remaining
+                COALESCE((SELECT SUM(amount_used) FROM donation_usage WHERE donation_id = d.id), 0)
+                + COALESCE((SELECT SUM(amount) FROM donation_adjustments WHERE donation_id = d.id), 0)
+                as amount_used,
+                (d.amount
+                 - COALESCE((SELECT SUM(amount_used) FROM donation_usage WHERE donation_id = d.id), 0)
+                 - COALESCE((SELECT SUM(amount) FROM donation_adjustments WHERE donation_id = d.id), 0)
+                ) as amount_remaining
             FROM donations d
             ORDER BY d.created_at DESC
         ''')
@@ -1827,16 +1836,13 @@ def get_donation(donation_id):
         cursor = conn.cursor()
         cursor.execute('''
             SELECT d.*,
-                COALESCE((
-                    SELECT SUM(amount_used) 
-                    FROM donation_usage 
-                    WHERE donation_id = d.id
-                ), 0) as amount_used,
-                (d.amount - COALESCE((
-                    SELECT SUM(amount_used) 
-                    FROM donation_usage 
-                    WHERE donation_id = d.id
-                ), 0)) as amount_remaining
+                COALESCE((SELECT SUM(amount_used) FROM donation_usage WHERE donation_id = d.id), 0)
+                + COALESCE((SELECT SUM(amount) FROM donation_adjustments WHERE donation_id = d.id), 0)
+                as amount_used,
+                (d.amount
+                 - COALESCE((SELECT SUM(amount_used) FROM donation_usage WHERE donation_id = d.id), 0)
+                 - COALESCE((SELECT SUM(amount) FROM donation_adjustments WHERE donation_id = d.id), 0)
+                ) as amount_remaining
             FROM donations d
             WHERE d.id = ?
         ''', (donation_id,))
@@ -1949,13 +1955,109 @@ def get_total_donations():
     return sum(d['amount'] for d in donations)
 
 def get_total_donations_used():
-    """Get total amount of donations used"""
+    """Get total amount of donations used (customer payments + manual adjustments)"""
     usage_history = get_donation_usage_history()
-    return sum(u['amount_used'] for u in usage_history)
+    total = sum(u['amount_used'] for u in usage_history)
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT COALESCE(SUM(amount), 0) as total FROM donation_adjustments')
+        total += cursor.fetchone()['total']
+    return total
+
+
+def adjust_donation(donation_id, amount, notes=None):
+    """Manually deduct an amount from a donation (e.g. accidental cash payment outside system)"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Verify donation exists and has enough remaining
+        cursor.execute('SELECT amount FROM donations WHERE id = ?', (donation_id,))
+        row = cursor.fetchone()
+        if not row:
+            return {'success': False, 'message': 'Donation not found'}
+
+        cursor.execute('''
+            SELECT COALESCE(SUM(amount_used), 0) as used_via_customers FROM donation_usage WHERE donation_id = ?
+        ''', (donation_id,))
+        used_customers = cursor.fetchone()['used_via_customers']
+
+        cursor.execute('''
+            SELECT COALESCE(SUM(amount), 0) as used_via_adj FROM donation_adjustments WHERE donation_id = ?
+        ''', (donation_id,))
+        used_adj = cursor.fetchone()['used_via_adj']
+
+        amount_remaining = row['amount'] - used_customers - used_adj
+        if amount > amount_remaining:
+            return {'success': False, 'message': f'Amount exceeds available balance. Available: ${amount_remaining:.2f}'}
+
+        cursor.execute('''
+            INSERT INTO donation_adjustments (donation_id, amount, notes)
+            VALUES (?, ?, ?)
+        ''', (donation_id, amount, notes))
+        conn.commit()
+        return {'success': True}
 
 def get_total_donations_available():
     """Get total amount of donations still available"""
     return get_total_donations() - get_total_donations_used()
+
+
+def get_anonymous_donations_available():
+    """Get total remaining balance across all anonymous donations"""
+    donations = get_all_donations()
+    return sum(
+        d['amount_remaining'] for d in donations
+        if not d.get('donor_name') and d['amount_remaining'] > 0
+    )
+
+
+def adjust_donations_anonymous(amount, notes=None):
+    """
+    Deduct 'amount' from anonymous donations, starting from the one with
+    the highest remaining balance and working downward.
+    Returns {'success': True} or {'success': False, 'message': ...}
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Fetch anonymous donations with remaining balance, highest first
+        cursor.execute('''
+            SELECT d.id, d.amount,
+                COALESCE((SELECT SUM(amount_used) FROM donation_usage WHERE donation_id = d.id), 0)
+                + COALESCE((SELECT SUM(amount) FROM donation_adjustments WHERE donation_id = d.id), 0)
+                AS total_used
+            FROM donations d
+            WHERE (d.donor_name IS NULL OR TRIM(d.donor_name) = '')
+              AND (
+                d.amount
+                - COALESCE((SELECT SUM(amount_used) FROM donation_usage WHERE donation_id = d.id), 0)
+                - COALESCE((SELECT SUM(amount) FROM donation_adjustments WHERE donation_id = d.id), 0)
+              ) > 0
+            ORDER BY (d.amount - total_used) DESC
+        ''')
+        rows = cursor.fetchall()
+
+        total_available = sum(r['amount'] - r['total_used'] for r in rows)
+        if amount > total_available:
+            return {
+                'success': False,
+                'message': f'Amount exceeds total anonymous available balance (${total_available:.2f})'
+            }
+
+        remaining_to_deduct = amount
+        for row in rows:
+            if remaining_to_deduct <= 0:
+                break
+            donation_remaining = row['amount'] - row['total_used']
+            deduct_here = min(remaining_to_deduct, donation_remaining)
+            cursor.execute('''
+                INSERT INTO donation_adjustments (donation_id, amount, notes)
+                VALUES (?, ?, ?)
+            ''', (row['id'], deduct_here, notes))
+            remaining_to_deduct -= deduct_here
+
+        conn.commit()
+        return {'success': True}
 
 # ============== BACKUP & RESTORE ==============
 
