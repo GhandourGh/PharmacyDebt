@@ -1,9 +1,15 @@
 @echo off
 REM Pharmacy Debt System - Auto Start Script
-REM This script starts the Flask application
+REM This script starts Ollama and the Flask application
 
 REM Change to the script's directory (where this .bat file is located)
 cd /d "%~dp0"
+
+REM Start Ollama in the background
+start /B ollama serve >nul 2>&1
+
+REM Wait a moment for Ollama to start
+timeout /t 3 /nobreak >nul
 
 REM Start the Flask application
 python app.py
