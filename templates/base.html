@@ -536,67 +536,66 @@
     <style>
         /* Floating button */
         .chat-fab {
-            position: fixed; bottom: 24px; right: 24px; width: 60px; height: 60px;
-            border-radius: 50%; border: none; cursor: pointer; z-index: 9998;
-            background: linear-gradient(135deg, #0ea5e9, #6366f1);
+            position: fixed; bottom: 24px; right: 24px; width: 52px; height: 52px;
+            border-radius: 12px; border: none; cursor: pointer; z-index: 9998;
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
             color: white; display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 6px 24px rgba(99,102,241,0.45), 0 2px 8px rgba(0,0,0,0.2);
-            transition: transform 0.25s cubic-bezier(.4,0,.2,1), box-shadow 0.25s;
+            box-shadow: 0 2px 12px rgba(37,99,235,0.35);
+            transition: all 0.2s ease;
         }
-        .chat-fab:hover { transform: scale(1.1) rotate(5deg); box-shadow: 0 8px 32px rgba(99,102,241,0.55); }
+        .chat-fab:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(37,99,235,0.45); }
         .chat-fab.open { transform: scale(0); pointer-events: none; }
 
         /* Chat panel */
         .chat-panel {
             display: none; flex-direction: column;
             position: fixed; bottom: 24px; right: 24px; width: 400px; height: 580px;
-            background: #0b1120; border: 1px solid #1e293b;
-            border-radius: 20px; overflow: hidden; z-index: 9999;
-            box-shadow: 0 12px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
-            animation: chatSlideUp 0.3s cubic-bezier(.4,0,.2,1);
+            background: white; border: 1px solid #e8ecf1;
+            border-radius: 12px; overflow: hidden; z-index: 9999;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08);
+            animation: chatSlideUp 0.25s ease-out;
         }
         .chat-panel.active { display: flex; }
         @keyframes chatSlideUp {
-            from { opacity: 0; transform: translateY(20px) scale(0.95); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         /* Header */
         .chat-header {
-            padding: 16px 20px; display: flex; align-items: center; gap: 12px;
-            background: linear-gradient(135deg, #0ea5e9, #6366f1);
-            position: relative;
+            padding: 14px 16px; display: flex; align-items: center; gap: 10px;
+            background: white; border-bottom: 1px solid #e8ecf1;
         }
         .chat-header-avatar {
-            width: 40px; height: 40px; border-radius: 50%;
-            background: rgba(255,255,255,0.2); display: flex;
-            align-items: center; justify-content: center; flex-shrink: 0;
+            width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            display: flex; align-items: center; justify-content: center;
         }
         .chat-header-info { flex: 1; }
-        .chat-header-name { color: white; font-weight: 700; font-size: 15px; }
-        .chat-header-status { color: rgba(255,255,255,0.8); font-size: 12px; display: flex; align-items: center; gap: 5px; }
+        .chat-header-name { color: #1e293b; font-weight: 600; font-size: 14px; }
+        .chat-header-status { color: #64748b; font-size: 11px; display: flex; align-items: center; gap: 5px; }
         .chat-header-status::before {
-            content: ''; width: 7px; height: 7px; border-radius: 50%;
-            background: #4ade80; display: inline-block;
+            content: ''; width: 6px; height: 6px; border-radius: 50%;
+            background: #22c55e; display: inline-block;
         }
         .chat-header-close {
-            background: rgba(255,255,255,0.15); border: none; color: white;
-            width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+            background: #f1f5f9; border: none; color: #64748b;
+            width: 30px; height: 30px; border-radius: 8px; cursor: pointer;
             display: flex; align-items: center; justify-content: center;
-            transition: background 0.2s;
+            transition: all 0.15s;
         }
-        .chat-header-close:hover { background: rgba(255,255,255,0.3); }
+        .chat-header-close:hover { background: #e2e8f0; color: #334155; }
 
         /* Messages area */
         .chat-messages {
-            flex: 1; overflow-y: auto; padding: 20px 16px; display: flex;
-            flex-direction: column; gap: 4px;
-            background: #0b1120;
-            scrollbar-width: thin; scrollbar-color: #1e293b transparent;
+            flex: 1; overflow-y: auto; padding: 16px; display: flex;
+            flex-direction: column; gap: 3px;
+            background: #f8fafc;
+            scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent;
         }
-        .chat-messages::-webkit-scrollbar { width: 5px; }
+        .chat-messages::-webkit-scrollbar { width: 4px; }
         .chat-messages::-webkit-scrollbar-track { background: transparent; }
-        .chat-messages::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+        .chat-messages::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 
         /* Message row */
         .chat-msg-row { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 2px; }
@@ -606,128 +605,184 @@
 
         /* Avatar small */
         .chat-avatar-sm {
-            width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
-            background: linear-gradient(135deg, #0ea5e9, #6366f1);
+            width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
             display: flex; align-items: center; justify-content: center;
             margin-bottom: 18px;
         }
-        .chat-avatar-sm svg { width: 14px; height: 14px; }
+        .chat-avatar-sm svg { width: 13px; height: 13px; }
 
         /* Bubble */
         .chat-bubble {
-            max-width: 78%; padding: 10px 14px; font-size: 13.5px;
-            line-height: 1.5; word-wrap: break-word; white-space: pre-wrap;
-            position: relative;
+            max-width: 80%; padding: 10px 14px; font-size: 13px;
+            line-height: 1.55; word-wrap: break-word; white-space: pre-wrap;
         }
         .chat-msg-row.bot .chat-bubble {
-            background: #1e293b; color: #e2e8f0;
-            border-radius: 4px 18px 18px 18px;
+            background: white; color: #334155;
+            border-radius: 4px 12px 12px 12px;
+            border: 1px solid #e8ecf1;
         }
         .chat-msg-row.user .chat-bubble {
-            background: linear-gradient(135deg, #0ea5e9, #6366f1); color: white;
-            border-radius: 18px 4px 18px 18px;
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: white;
+            border-radius: 12px 4px 12px 12px;
         }
 
         /* Timestamp */
-        .chat-time {
-            font-size: 10px; color: #475569; margin-top: 2px; padding: 0 4px;
-        }
+        .chat-time { font-size: 10px; color: #94a3b8; margin-top: 2px; padding: 0 4px; }
         .chat-msg-row.user .chat-time { text-align: right; }
         .chat-msg-row.user .chat-time-wrap { display: flex; justify-content: flex-end; align-items: center; gap: 4px; }
-
-        /* Read receipt checkmarks */
-        .chat-delivered { display: inline-flex; color: #60a5fa; }
-        .chat-delivered svg { width: 14px; height: 14px; }
+        .chat-delivered { display: inline-flex; color: #2563eb; }
+        .chat-delivered svg { width: 13px; height: 13px; }
 
         /* Typing indicator */
         .chat-typing { display: flex; align-items: flex-end; gap: 8px; }
         .chat-typing-dots {
-            background: #1e293b; border-radius: 4px 18px 18px 18px;
+            background: white; border: 1px solid #e8ecf1; border-radius: 4px 12px 12px 12px;
             padding: 12px 18px; display: flex; gap: 4px; align-items: center;
         }
         .chat-typing-dots span {
-            width: 7px; height: 7px; border-radius: 50%;
-            background: #475569; animation: typingBounce 1.4s infinite;
+            width: 6px; height: 6px; border-radius: 50%;
+            background: #94a3b8; animation: typingBounce 1.4s infinite;
         }
         .chat-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
         .chat-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
         @keyframes typingBounce {
             0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-            30% { transform: translateY(-6px); opacity: 1; }
+            30% { transform: translateY(-5px); opacity: 1; }
         }
+
+        /* Command menu */
+        .chat-cmd-menu {
+            display: none; position: absolute; bottom: 100%; left: 0; right: 0;
+            background: white; border-top: 1px solid #e8ecf1;
+            max-height: 320px; overflow-y: auto;
+            scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent;
+        }
+        .chat-cmd-menu.active { display: block; }
+        .chat-cmd-menu::-webkit-scrollbar { width: 4px; }
+        .chat-cmd-menu::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .chat-cmd-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 16px; cursor: pointer; transition: background 0.1s;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .chat-cmd-item:last-child { border-bottom: none; }
+        .chat-cmd-item:hover { background: #f8fafc; }
+        .chat-cmd-item .cmd-icon {
+            width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 700;
+        }
+        .chat-cmd-item .cmd-label { color: #1e293b; font-weight: 600; font-size: 13px; }
+        .chat-cmd-item .cmd-desc { color: #94a3b8; font-size: 11px; margin-top: 1px; }
+
+        /* Quick pills row */
+        .chat-quick-row {
+            display: flex; gap: 6px; padding: 8px 16px; overflow-x: auto;
+            border-top: 1px solid #e8ecf1; background: white;
+            scrollbar-width: none;
+        }
+        .chat-quick-row::-webkit-scrollbar { display: none; }
+        .chat-quick-pill {
+            white-space: nowrap; background: #f1f5f9; color: #475569;
+            padding: 5px 12px; border-radius: 8px; font-size: 11px;
+            cursor: pointer; border: 1px solid #e2e8f0; transition: all 0.15s;
+            font-weight: 500; flex-shrink: 0;
+        }
+        .chat-quick-pill:hover { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
 
         /* Input area */
         .chat-input-area {
-            padding: 12px 16px; border-top: 1px solid #1e293b;
-            display: flex; align-items: center; gap: 10px;
-            background: #0f172a;
+            padding: 12px 16px; border-top: 1px solid #e8ecf1;
+            display: flex; align-items: center; gap: 8px;
+            background: white; position: relative;
         }
+        .chat-cmd-btn {
+            width: 36px; height: 36px; border-radius: 10px; border: 1px solid #e2e8f0;
+            background: #f8fafc; color: #64748b; cursor: pointer; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.15s; font-size: 18px; font-weight: 600;
+        }
+        .chat-cmd-btn:hover { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
+        .chat-cmd-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
         .chat-input {
-            flex: 1; padding: 11px 16px; border-radius: 24px;
-            border: 1px solid #1e293b; background: #1e293b;
-            color: white; font-size: 13.5px; outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            flex: 1; padding: 10px 14px; border-radius: 10px;
+            border: 1px solid #e2e8f0; background: #f8fafc;
+            color: #1e293b; font-size: 13px; outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+            font-family: inherit;
         }
         .chat-input:focus {
-            border-color: #6366f1;
-            box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+            border-color: #2563eb; background: white;
+            box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
         }
-        .chat-input::placeholder { color: #475569; }
+        .chat-input::placeholder { color: #94a3b8; }
         .chat-send-btn {
-            width: 40px; height: 40px; border-radius: 50%; border: none;
-            background: linear-gradient(135deg, #0ea5e9, #6366f1);
+            width: 36px; height: 36px; border-radius: 10px; border: none;
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
             color: white; cursor: pointer; display: flex;
             align-items: center; justify-content: center;
-            transition: transform 0.2s, box-shadow 0.2s; flex-shrink: 0;
+            transition: all 0.15s; flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(37,99,235,0.25);
         }
-        .chat-send-btn:hover { transform: scale(1.08); box-shadow: 0 4px 16px rgba(99,102,241,0.4); }
-        .chat-send-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .chat-send-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37,99,235,0.35); }
+        .chat-send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
 
         /* Date separator */
-        .chat-date-sep {
-            text-align: center; padding: 8px 0; font-size: 11px; color: #475569;
-        }
-        .chat-date-sep span {
-            background: #1e293b; padding: 4px 12px; border-radius: 10px;
-        }
+        .chat-date-sep { text-align: center; padding: 8px 0; font-size: 11px; }
+        .chat-date-sep span { background: #e2e8f0; color: #64748b; padding: 3px 12px; border-radius: 8px; font-weight: 500; }
 
-        /* Welcome card */
-        .chat-welcome {
-            background: linear-gradient(135deg, rgba(14,165,233,0.1), rgba(99,102,241,0.1));
-            border: 1px solid rgba(99,102,241,0.2); border-radius: 16px;
-            padding: 16px; margin-bottom: 8px;
+        /* Welcome */
+        .chat-welcome { padding: 4px 0; }
+        .chat-welcome-msg {
+            background: white; border: 1px solid #e8ecf1; border-radius: 12px;
+            padding: 14px; color: #334155; font-size: 13px; line-height: 1.5;
         }
-        .chat-welcome h4 { color: #e2e8f0; font-size: 14px; font-weight: 600; margin: 0 0 8px 0; }
-        .chat-welcome-cmds { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
-        .chat-welcome-cmd {
-            background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2);
-            color: #93c5fd; padding: 9px 14px; border-radius: 12px;
-            font-size: 12.5px; cursor: pointer; transition: all 0.2s;
-            display: flex; align-items: center; gap: 10px;
-        }
-        .chat-welcome-cmd:hover {
-            background: rgba(99,102,241,0.2); color: white; transform: translateX(4px);
-            border-color: rgba(99,102,241,0.4);
-        }
-        .chat-welcome-cmd .cmd-icon {
-            width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 14px;
-        }
-        .chat-welcome-cmd .cmd-text { flex: 1; }
-        .chat-welcome-cmd .cmd-label { color: #e2e8f0; font-weight: 500; font-size: 12.5px; }
-        .chat-welcome-cmd .cmd-template { color: #64748b; font-size: 11px; margin-top: 1px; }
-        .chat-cmd-arrow { color: #475569; font-size: 14px; }
+        .chat-welcome-msg strong { color: #1e293b; }
 
         @media (max-width: 480px) {
-            .chat-panel { width: calc(100vw - 16px); right: 8px; bottom: 8px; height: 85vh; border-radius: 16px; }
+            .chat-panel { width: calc(100vw - 16px); right: 8px; bottom: 8px; height: 85vh; border-radius: 12px; }
             .chat-fab { bottom: 16px; right: 16px; }
         }
+
+        /* ---- Dark mode ---- */
+        .dark .chat-fab { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
+        .dark .chat-panel { background: #1e293b; border-color: #334155; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+        .dark .chat-header { background: #1e293b; border-bottom-color: #334155; }
+        .dark .chat-header-name { color: #e2e8f0; }
+        .dark .chat-header-status { color: #94a3b8; }
+        .dark .chat-header-close { background: #334155; color: #94a3b8; }
+        .dark .chat-header-close:hover { background: #475569; color: #e2e8f0; }
+        .dark .chat-messages { background: #0f172a; scrollbar-color: #334155 transparent; }
+        .dark .chat-messages::-webkit-scrollbar-thumb { background: #334155; }
+        .dark .chat-msg-row.bot .chat-bubble { background: #1e293b; color: #e2e8f0; border-color: #334155; }
+        .dark .chat-time { color: #64748b; }
+        .dark .chat-typing-dots { background: #1e293b; border-color: #334155; }
+        .dark .chat-typing-dots span { background: #64748b; }
+        .dark .chat-cmd-menu { background: #1e293b; border-top-color: #334155; }
+        .dark .chat-cmd-item { border-bottom-color: #334155; }
+        .dark .chat-cmd-item:hover { background: #0f172a; }
+        .dark .chat-cmd-item .cmd-label { color: #e2e8f0; }
+        .dark .chat-cmd-item .cmd-desc { color: #64748b; }
+        .dark .chat-quick-row { background: #1e293b; border-top-color: #334155; }
+        .dark .chat-quick-pill { background: #0f172a; color: #94a3b8; border-color: #334155; }
+        .dark .chat-quick-pill:hover { background: rgba(59,130,246,0.1); color: #60a5fa; border-color: rgba(59,130,246,0.3); }
+        .dark .chat-input-area { background: #1e293b; border-top-color: #334155; }
+        .dark .chat-cmd-btn { background: #0f172a; border-color: #334155; color: #94a3b8; }
+        .dark .chat-cmd-btn:hover { background: rgba(59,130,246,0.1); color: #60a5fa; border-color: rgba(59,130,246,0.3); }
+        .dark .chat-cmd-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
+        .dark .chat-input { background: #0f172a; border-color: #334155; color: #e2e8f0; }
+        .dark .chat-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); background: #0f172a; }
+        .dark .chat-input::placeholder { color: #64748b; }
+        .dark .chat-date-sep span { background: #334155; color: #94a3b8; }
+        .dark .chat-welcome-msg { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+        .dark .chat-welcome-msg strong { color: #f1f5f9; }
+        .dark .chat-avatar-sm { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
     </style>
 
     <!-- Floating Action Button -->
     <button id="chatbot-btn" class="chat-fab" onclick="toggleChatbot()">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
     </button>
 
     <!-- Chat Panel -->
@@ -735,17 +790,17 @@
         <!-- Header -->
         <div class="chat-header">
             <div class="chat-header-avatar">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
             </div>
             <div class="chat-header-info">
                 <div class="chat-header-name">Pharmacy AI</div>
                 <div class="chat-header-status">Online</div>
             </div>
             <button class="chat-header-close" onclick="clearChatHistory()" title="Clear chat" style="margin-right:4px;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg>
             </button>
             <button class="chat-header-close" onclick="toggleChatbot()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
         </div>
 
@@ -753,67 +808,35 @@
         <div id="chatbot-messages" class="chat-messages">
             <div class="chat-date-sep"><span>Today</span></div>
             <div class="chat-welcome">
-                <h4>Welcome! I'm your pharmacy assistant.</h4>
-                <p style="color:#94a3b8;font-size:12.5px;margin:0 0 4px 0;">Tap a command to prefill, then edit the details:</p>
-                <div class="chat-welcome-cmds">
-                    <span class="chat-welcome-cmd" onclick="prefillCmd('[name] owes [amount]')">
-                        <span class="cmd-icon" style="background:rgba(239,68,68,0.15);color:#f87171;">+$</span>
-                        <span class="cmd-text"><span class="cmd-label">Add Debt</span><br><span class="cmd-template">[name] owes [amount]</span></span>
-                        <span class="chat-cmd-arrow">&#8250;</span>
-                    </span>
-                    <span class="chat-welcome-cmd" onclick="prefillCmd('add [amount] [product] for [name]')">
-                        <span class="cmd-icon" style="background:rgba(249,115,22,0.15);color:#fb923c;">Rx</span>
-                        <span class="cmd-text"><span class="cmd-label">Add Debt with Product</span><br><span class="cmd-template">add [amount] [product] for [name]</span></span>
-                        <span class="chat-cmd-arrow">&#8250;</span>
-                    </span>
-                    <span class="chat-welcome-cmd" onclick="prefillCmd('[name] paid [amount]')">
-                        <span class="cmd-icon" style="background:rgba(34,197,94,0.15);color:#4ade80;">-$</span>
-                        <span class="cmd-text"><span class="cmd-label">Record Payment</span><br><span class="cmd-template">[name] paid [amount]</span></span>
-                        <span class="chat-cmd-arrow">&#8250;</span>
-                    </span>
-                    <span class="chat-welcome-cmd" onclick="prefillCmd('how much does [name] owe?')">
-                        <span class="cmd-icon" style="background:rgba(59,130,246,0.15);color:#60a5fa;">?$</span>
-                        <span class="cmd-text"><span class="cmd-label">Check Balance</span><br><span class="cmd-template">how much does [name] owe?</span></span>
-                        <span class="chat-cmd-arrow">&#8250;</span>
-                    </span>
-                    <span class="chat-welcome-cmd" onclick="prefillCmd('show details for [name]')">
-                        <span class="cmd-icon" style="background:rgba(168,85,247,0.15);color:#a78bfa;">i</span>
-                        <span class="cmd-text"><span class="cmd-label">Customer Info</span><br><span class="cmd-template">show details for [name]</span></span>
-                        <span class="chat-cmd-arrow">&#8250;</span>
-                    </span>
-                    <span class="chat-welcome-cmd" onclick="prefillCmd('show [name] history')">
-                        <span class="cmd-icon" style="background:rgba(236,72,153,0.15);color:#f472b6;">&#x1D4D7;</span>
-                        <span class="cmd-text"><span class="cmd-label">Transaction History</span><br><span class="cmd-template">show [name] history</span></span>
-                        <span class="chat-cmd-arrow">&#8250;</span>
-                    </span>
-                    <span class="chat-welcome-cmd" onclick="prefillCmd('use donation for [name] [amount]')">
-                        <span class="cmd-icon" style="background:rgba(20,184,166,0.15);color:#2dd4bf;">&#x2764;</span>
-                        <span class="cmd-text"><span class="cmd-label">Use Donation</span><br><span class="cmd-template">use donation for [name] [amount]</span></span>
-                        <span class="chat-cmd-arrow">&#8250;</span>
-                    </span>
-                    <span class="chat-welcome-cmd" onclick="prefillCmd('[name] uncle paid [amount] for him')">
-                        <span class="cmd-icon" style="background:rgba(234,179,8,0.15);color:#facc15;">&#x1F465;</span>
-                        <span class="cmd-text"><span class="cmd-label">Third-Party Credit</span><br><span class="cmd-template">[name] uncle paid [amount] for him</span></span>
-                        <span class="chat-cmd-arrow">&#8250;</span>
-                    </span>
-                </div>
-                <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(99,102,241,0.15);">
-                    <span style="background:rgba(99,102,241,0.1);color:#93c5fd;padding:5px 11px;border-radius:20px;font-size:11px;cursor:pointer;" onclick="quickSend('list all customers')">All Customers</span>
-                    <span style="background:rgba(99,102,241,0.1);color:#93c5fd;padding:5px 11px;border-radius:20px;font-size:11px;cursor:pointer;" onclick="quickSend('who owes the most?')">Top Debtors</span>
-                    <span style="background:rgba(99,102,241,0.1);color:#93c5fd;padding:5px 11px;border-radius:20px;font-size:11px;cursor:pointer;" onclick="quickSend('total debt')">Total Debt</span>
-                    <span style="background:rgba(99,102,241,0.1);color:#93c5fd;padding:5px 11px;border-radius:20px;font-size:11px;cursor:pointer;" onclick="quickSend('show today\'s summary')">Today</span>
-                    <span style="background:rgba(99,102,241,0.1);color:#93c5fd;padding:5px 11px;border-radius:20px;font-size:11px;cursor:pointer;" onclick="quickSend('who is overdue?')">Overdue</span>
-                    <span style="background:rgba(99,102,241,0.1);color:#93c5fd;padding:5px 11px;border-radius:20px;font-size:11px;cursor:pointer;" onclick="quickSend('weekly stats')">Weekly</span>
-                    <span style="background:rgba(99,102,241,0.1);color:#93c5fd;padding:5px 11px;border-radius:20px;font-size:11px;cursor:pointer;" onclick="quickSend('help')">All Commands</span>
+                <div class="chat-welcome-msg">
+                    <strong>Welcome!</strong> I'm your pharmacy assistant. Type a message or tap <strong>/</strong> for commands.
                 </div>
             </div>
         </div>
 
         <!-- Input -->
         <div class="chat-input-area">
+            <!-- Command menu (slides up from input) -->
+            <div id="chat-cmd-menu" class="chat-cmd-menu">
+                <div class="chat-cmd-item" onclick="cmdSelect('[name] owes [amount]')">
+                    <span class="cmd-icon" style="background:rgba(220,38,38,0.08);color:#dc2626;">+$</span>
+                    <span><span class="cmd-label">Add Debt</span><br><span class="cmd-desc">[name] owes [amount]</span></span>
+                </div>
+                <div class="chat-cmd-item" onclick="cmdSelect('add [amount] [product] for [name]')">
+                    <span class="cmd-icon" style="background:rgba(234,88,12,0.08);color:#ea580c;">Rx</span>
+                    <span><span class="cmd-label">Debt + Product</span><br><span class="cmd-desc">add [amount] [product] for [name]</span></span>
+                </div>
+                <div class="chat-cmd-item" onclick="cmdSelect('[name] paid [amount]')">
+                    <span class="cmd-icon" style="background:rgba(22,163,74,0.08);color:#16a34a;">-$</span>
+                    <span><span class="cmd-label">Record Payment</span><br><span class="cmd-desc">[name] paid [amount]</span></span>
+                </div>
+            </div>
+            <button id="chat-cmd-btn" class="chat-cmd-btn" onclick="toggleCmdMenu()" title="Commands">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
             <input id="chatbot-input" class="chat-input" type="text" placeholder="Type a message..." onkeydown="if(event.key==='Enter' && !event.shiftKey)sendChatMessage()" autocomplete="off" />
             <button id="chatbot-send" class="chat-send-btn" onclick="sendChatMessage()">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             </button>
         </div>
     </div>
@@ -924,11 +947,29 @@
         container.scrollTop = container.scrollHeight;
     }
 
+    function toggleCmdMenu() {
+        const menu = document.getElementById('chat-cmd-menu');
+        const btn = document.getElementById('chat-cmd-btn');
+        const isOpen = menu.classList.contains('active');
+        menu.classList.toggle('active');
+        btn.classList.toggle('active');
+        if (!isOpen) {
+            document.getElementById('chatbot-input').focus();
+        }
+    }
+
+    function cmdSelect(template) {
+        const menu = document.getElementById('chat-cmd-menu');
+        const btn = document.getElementById('chat-cmd-btn');
+        menu.classList.remove('active');
+        btn.classList.remove('active');
+        prefillCmd(template);
+    }
+
     function prefillCmd(template) {
         const input = document.getElementById('chatbot-input');
         input.value = template;
         input.focus();
-        // Select the first [placeholder] so user can type over it
         const match = template.match(/\[([^\]]+)\]/);
         if (match) {
             const start = template.indexOf(match[0]);
@@ -947,6 +988,10 @@
         const sendBtn = document.getElementById('chatbot-send');
         const message = input.value.trim();
         if (!message) return;
+
+        // Close command menu if open
+        document.getElementById('chat-cmd-menu').classList.remove('active');
+        document.getElementById('chat-cmd-btn').classList.remove('active');
 
         appendMessage(message, true);
         input.value = '';
