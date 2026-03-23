@@ -11,6 +11,7 @@ from validators import (
 )
 import os
 import io
+from chatbot import process_message
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'pharmacy-thabet-secret-key')
@@ -1182,6 +1183,494 @@ def create_demo_data():
     except Exception as e:
         flash(f'Error creating demo data: {str(e)}', 'error')
     return redirect(url_for('dashboard'))
+
+# ============== AI CHATBOT ==============
+
+def _fuzzy_find_customer(name):
+    """Find a customer by name with fuzzy matching. Returns list of matches (best first)."""
+    from difflib import SequenceMatcher
+    # Try exact substring match first
+    results = db.search_customers(name)
+    if results:
+        return results
+    # Fuzzy match against all active customers
+    all_customers = db.get_all_customers()
+    name_lower = name.lower().strip()
+    scored = []
+    for c in all_customers:
+        ratio = SequenceMatcher(None, name_lower, c['name'].lower()).ratio()
+        # Also check if all words from input appear as prefixes in customer name
+        input_words = name_lower.split()
+        customer_words = c['name'].lower().split()
+        prefix_match = all(
+            any(cw.startswith(iw) or iw.startswith(cw) for cw in customer_words)
+            for iw in input_words
+        )
+        if prefix_match:
+            ratio = max(ratio, 0.75)
+        if ratio >= 0.6:
+            scored.append((ratio, c))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [c for _, c in scored]
+
+
+@app.route('/api/chat', methods=['POST'])
+def chat():
+    """Process a natural language message via the AI chatbot and execute the action."""
+    data = request.get_json()
+    if not data or not data.get('message'):
+        return jsonify({"reply": "Please enter a message."}), 400
+
+    user_message = data['message'].strip()
+    result = process_message(user_message)
+
+    # Handle errors from the AI layer
+    if result.get("action") == "error":
+        return jsonify({"reply": result["error"]})
+
+    if result.get("action") == "unknown":
+        return jsonify({"reply": result.get("error", "I didn't understand that. Type 'help' to see what I can do.")})
+
+    action = result["action"]
+    name = result.get("name", "")
+    amount = result.get("amount", 0)
+
+    try:
+        return jsonify({"reply": _handle_chat_action(action, name, amount, result), "action": action})
+    except Exception as e:
+        return jsonify({"reply": f"Error: {str(e)}"})
+
+
+def _handle_chat_action(action, name, amount, result):
+    """Execute a chatbot action and return a reply string."""
+
+    # ---- HELP ----
+    if action == "help":
+        return (
+            "Here's what I can do:\n"
+            "- \"[name] owes [amount]\" — add debt\n"
+            "- \"[name] paid [amount]\" — record payment\n"
+            "- \"How much does [name] owe?\" — check balance\n"
+            "- \"Show details for [name]\" — customer info\n"
+            "- \"Show [name]'s history\" — transaction history\n"
+            "- \"List all customers\" — all customers\n"
+            "- \"Who owes the most?\" — top debtors\n"
+            "- \"List all products\" — product catalog\n"
+            "- \"Add product [name] at [price]\" — new product\n"
+            "- \"What's the total debt?\" — system total\n"
+            "- \"Show today's summary\" — daily report\n"
+            "- \"Who is overdue?\" — overdue customers\n"
+            "- \"Show recent activity\" — latest transactions\n"
+            "- \"Aging report\" — debt aging breakdown\n"
+            "- \"Weekly stats\" — week summary\n"
+            "- \"Donation balance\" — available donations\n"
+            "- \"Add donation [amount] from [name]\" — record donation\n"
+            "- \"[name]'s uncle paid [amount] for him\" — third-party credit\n"
+            "- \"Use donation for [name] [amount]\" — apply donation to debt\n"
+            "- \"What happened on March 15?\" — date lookup\n"
+            "Works in English and Arabic!"
+        )
+
+    # ---- GET DEBT ----
+    if action == "get_debt":
+        customers = _fuzzy_find_customer(name)
+        if not customers:
+            return f"No customer found matching '{name}'."
+        customer = customers[0]
+        balance = db.get_customer_balance(customer['id'])
+        if balance > 0:
+            return f"{customer['name']} owes ${balance:.2f}."
+        elif balance < 0:
+            return f"{customer['name']} has a credit of ${abs(balance):.2f}."
+        return f"{customer['name']} has no outstanding debt."
+
+    # ---- ADD DEBT ----
+    if action == "add_debt":
+        customers = _fuzzy_find_customer(name)
+        if not customers:
+            customer_id = db.add_customer(name)
+            customer_name = name
+        else:
+            customer_id = customers[0]['id']
+            customer_name = customers[0]['name']
+        product = result.get("product", "") or "Chatbot Entry"
+        items = [{"product_name": product, "price": amount, "quantity": 1}]
+        db.add_debt(customer_id, items, description="Added via AI chatbot")
+        new_balance = db.get_customer_balance(customer_id)
+        return f"Added ${amount:.2f} debt for {customer_name}. Total balance: ${new_balance:.2f}."
+
+    # ---- PAY DEBT ----
+    if action == "pay_debt":
+        customers = _fuzzy_find_customer(name)
+        if not customers:
+            return f"No customer found matching '{name}'."
+        customer = customers[0]
+        db.add_payment(customer['id'], amount, notes="Paid via AI chatbot")
+        new_balance = db.get_customer_balance(customer['id'])
+        return f"Recorded ${amount:.2f} payment from {customer['name']}. Remaining balance: ${new_balance:.2f}."
+
+    # ---- LIST CUSTOMERS ----
+    if action == "list_customers":
+        customers = db.get_customers_with_debt()
+        if not customers:
+            return "No customers found."
+        lines = []
+        for c in customers[:15]:
+            debt = c.get('debt', 0)
+            status = f"${debt:.2f}" if debt > 0 else "No debt"
+            lines.append(f"- {c['name']}: {status}")
+        total = len(customers)
+        reply = "\n".join(lines)
+        if total > 15:
+            reply += f"\n...and {total - 15} more."
+        return reply
+
+    # ---- CUSTOMER DETAIL ----
+    if action == "customer_detail":
+        customers = _fuzzy_find_customer(name)
+        if not customers:
+            return f"No customer found matching '{name}'."
+        c = customers[0]
+        balance = db.get_customer_balance(c['id'])
+        lines = [
+            f"Name: {c['name']}",
+            f"Phone: {c.get('phone') or 'N/A'}",
+            f"Email: {c.get('email') or 'N/A'}",
+            f"Address: {c.get('address') or 'N/A'}",
+            f"Credit Limit: ${c.get('credit_limit', 500):.2f}",
+            f"Balance: ${balance:.2f}" if balance >= 0 else f"Credit: ${abs(balance):.2f}",
+            f"Status: {'Active' if c.get('is_active', 1) else 'Inactive'}",
+        ]
+        return "\n".join(lines)
+
+    # ---- ADD CUSTOMER ----
+    if action == "add_customer":
+        existing = _fuzzy_find_customer(name)
+        if existing:
+            return f"Customer '{existing[0]['name']}' already exists with balance ${db.get_customer_balance(existing[0]['id']):.2f}."
+        phone = result.get("phone", "")
+        customer_id = db.add_customer(name, phone=phone if phone else None)
+        return f"Customer '{name}' created successfully (ID: {customer_id})."
+
+    # ---- REMOVE CUSTOMER ----
+    if action == "remove_customer":
+        customers = _fuzzy_find_customer(name)
+        if not customers:
+            return f"No customer found matching '{name}'."
+        customer = customers[0]
+        balance = db.get_customer_balance(customer['id'])
+        if balance > 0:
+            return f"Cannot remove {customer['name']} — they still owe ${balance:.2f}. Clear their debt first."
+        db.deactivate_customer(customer['id'])
+        return f"Customer '{customer['name']}' has been removed."
+
+    # ---- TOP DEBTORS ----
+    if action == "top_debtors":
+        customers = db.get_customers_with_debt()
+        debtors = [c for c in customers if c.get('debt', 0) > 0]
+        if not debtors:
+            return "No customers with outstanding debt."
+        debtors.sort(key=lambda c: c['debt'], reverse=True)
+        lines = []
+        for i, c in enumerate(debtors[:10], 1):
+            lines.append(f"{i}. {c['name']}: ${c['debt']:.2f}")
+        return "Top debtors:\n" + "\n".join(lines)
+
+    # ---- CUSTOMER HISTORY ----
+    if action == "customer_history":
+        customers = _fuzzy_find_customer(name)
+        if not customers:
+            return f"No customer found matching '{name}'."
+        customer = customers[0]
+        ledger = db.get_customer_ledger(customer['id'])
+        if not ledger:
+            return f"No transaction history for {customer['name']}."
+        lines = [f"History for {customer['name']}:"]
+        for entry in ledger[:10]:
+            etype = entry['entry_type']
+            amt = entry['amount']
+            date = entry.get('created_at', '')[:10]
+            if etype == 'NEW_DEBT':
+                lines.append(f"- {date}: Debt +${amt:.2f}")
+            elif etype == 'PAYMENT':
+                lines.append(f"- {date}: Payment -${amt:.2f}")
+            else:
+                lines.append(f"- {date}: {etype} ${amt:.2f}")
+        if len(ledger) > 10:
+            lines.append(f"...and {len(ledger) - 10} more entries.")
+        balance = db.get_customer_balance(customer['id'])
+        lines.append(f"Current balance: ${balance:.2f}")
+        return "\n".join(lines)
+
+    # ---- LIST PRODUCTS ----
+    if action == "list_products":
+        products = db.get_all_products()
+        if not products:
+            return "No products found."
+        lines = []
+        for p in products[:20]:
+            cat = f" ({p['category']})" if p.get('category') else ""
+            lines.append(f"- {p['name']}: ${p['price']:.2f}{cat}")
+        if len(products) > 20:
+            lines.append(f"...and {len(products) - 20} more.")
+        return "\n".join(lines)
+
+    # ---- PRODUCT DETAIL ----
+    if action == "product_detail":
+        products = db.get_all_products()
+        name_lower = name.lower()
+        match = None
+        for p in products:
+            if name_lower in p['name'].lower():
+                match = p
+                break
+        if not match:
+            return f"No product found matching '{name}'."
+        cat = f"Category: {match['category']}" if match.get('category') else "No category"
+        rx = "Yes" if match.get('is_prescription') else "No"
+        return f"{match['name']}\nPrice: ${match['price']:.2f}\n{cat}\nPrescription: {rx}"
+
+    # ---- ADD PRODUCT ----
+    if action == "add_product":
+        product_id = db.add_product(name, amount)
+        return f"Product '{name}' added at ${amount:.2f} (ID: {product_id})."
+
+    # ---- TOTAL DEBT ----
+    if action == "total_debt":
+        total = db.get_total_debt_all()
+        customers = db.get_customers_with_debt()
+        count = len([c for c in customers if c.get('debt', 0) > 0])
+        return f"Total debt across all customers: ${total:.2f}\nCustomers with debt: {count}"
+
+    # ---- DAILY SUMMARY ----
+    if action == "daily_summary":
+        stats = db.get_daily_reconciliation()
+        debt = float(stats.get('total_debt') or 0)
+        payments = float(stats.get('total_payments') or 0)
+        count_debts = stats.get('debt_count', 0)
+        count_payments = stats.get('payment_count', 0)
+        return (
+            f"Today's Summary:\n"
+            f"Debts added: {count_debts} (${debt:.2f})\n"
+            f"Payments received: {count_payments} (${payments:.2f})\n"
+            f"Net: ${debt - payments:.2f}"
+        )
+
+    # ---- TODAY'S DEBTS ----
+    if action == "today_debts":
+        today = datetime.now().strftime('%Y-%m-%d')
+        transactions = db.get_transactions_by_date(today, today)
+        debts = [t for t in transactions if t.get('entry_type') == 'NEW_DEBT']
+        if not debts:
+            return "No debts were added today."
+        lines = [f"Debts added today ({len(debts)}):"]
+        for t in debts:
+            product = t.get('product_name') or t.get('description') or ''
+            product_str = f" ({product})" if product else ""
+            lines.append(f"- {t['customer_name']}: ${float(t.get('amount', 0)):.2f}{product_str}")
+        return "\n".join(lines)
+
+    # ---- TODAY'S PAYMENTS ----
+    if action == "today_payments":
+        today = datetime.now().strftime('%Y-%m-%d')
+        transactions = db.get_transactions_by_date(today, today)
+        payments = [t for t in transactions if t.get('entry_type') == 'PAYMENT']
+        if not payments:
+            return "No payments were received today."
+        lines = [f"Payments received today ({len(payments)}):"]
+        for t in payments:
+            lines.append(f"- {t['customer_name']}: ${float(t.get('amount', 0)):.2f}")
+        return "\n".join(lines)
+
+    # ---- TODAY'S NEW CUSTOMERS ----
+    if action == "today_customers":
+        today = datetime.now().strftime('%Y-%m-%d')
+        all_customers = db.get_all_customers()
+        added_today = [c for c in all_customers if str(c.get('created_at', ''))[:10] == today]
+        if not added_today:
+            return "No new customers were added today."
+        lines = [f"Customers added today ({len(added_today)}):"]
+        for c in added_today:
+            lines.append(f"- {c['name']}")
+        return "\n".join(lines)
+
+    # ---- OVERDUE CUSTOMERS ----
+    if action == "overdue_customers":
+        overdue = db.get_overdue_customers()
+        if not overdue:
+            return "No overdue customers. Everyone is on time!"
+        lines = ["Overdue customers (30+ days):"]
+        for c in overdue[:10]:
+            lines.append(f"- {c['name']}: ${c.get('total_debt', c.get('debt', 0)):.2f} (oldest: {c.get('oldest_date', 'N/A')[:10]})")
+        if len(overdue) > 10:
+            lines.append(f"...and {len(overdue) - 10} more.")
+        return "\n".join(lines)
+
+    # ---- OVER LIMIT CUSTOMERS ----
+    if action == "over_limit_customers":
+        over = db.get_over_limit_customers()
+        if not over:
+            return "No customers over their credit limit."
+        lines = ["Customers over credit limit:"]
+        for c in over[:10]:
+            lines.append(f"- {c['name']}: ${c.get('debt', 0):.2f} / limit ${c.get('credit_limit', 500):.2f}")
+        return "\n".join(lines)
+
+    # ---- RECENT ACTIVITY ----
+    if action == "recent_activity":
+        activity = db.get_recent_activity(10)
+        if not activity:
+            return "No recent activity."
+        lines = ["Recent activity:"]
+        for a in activity:
+            date = a.get('created_at', '')[:10]
+            etype = a.get('entry_type', '')
+            amt = a.get('amount', 0)
+            cname = a.get('customer_name', 'Unknown')
+            if etype == 'NEW_DEBT':
+                lines.append(f"- {date}: {cname} +${amt:.2f} (debt)")
+            elif etype == 'PAYMENT':
+                lines.append(f"- {date}: {cname} -${amt:.2f} (payment)")
+            else:
+                lines.append(f"- {date}: {cname} ${amt:.2f} ({etype})")
+        return "\n".join(lines)
+
+    # ---- AGING REPORT ----
+    if action == "aging_report":
+        aging = db.get_aging_report()
+        if not aging:
+            return "No aging data available."
+        lines = ["Debt Aging Report:"]
+        for entry in aging[:10]:
+            cname = entry.get('customer_name', entry.get('name', 'Unknown'))
+            current = float(entry.get('current', 0))
+            days_30 = float(entry.get('days_30', 0))
+            days_60 = float(entry.get('days_60', 0))
+            days_90 = float(entry.get('days_90', 0))
+            total = current + days_30 + days_60 + days_90
+            if total > 0:
+                lines.append(f"- {cname}: ${total:.2f} (Current: ${current:.2f}, 30d: ${days_30:.2f}, 60d: ${days_60:.2f}, 90d+: ${days_90:.2f})")
+        if len(lines) == 1:
+            return "No outstanding aging debt."
+        return "\n".join(lines)
+
+    # ---- WEEKLY STATS ----
+    if action == "weekly_stats":
+        weekly_debt = 0
+        weekly_payments = 0
+        for i in range(7):
+            date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
+            stats = db.get_daily_reconciliation(date)
+            weekly_debt += float(stats.get('total_debt') or 0)
+            weekly_payments += float(stats.get('total_payments') or 0)
+        return (
+            f"This Week's Stats (last 7 days):\n"
+            f"Total debts added: ${weekly_debt:.2f}\n"
+            f"Total payments received: ${weekly_payments:.2f}\n"
+            f"Net: ${weekly_debt - weekly_payments:.2f}"
+        )
+
+    # ---- DONATION BALANCE ----
+    if action == "donation_balance":
+        available = db.get_total_donations_available()
+        total = db.get_total_donations()
+        used = db.get_total_donations_used()
+        return (
+            f"Donations:\n"
+            f"Total received: ${total:.2f}\n"
+            f"Used: ${used:.2f}\n"
+            f"Available: ${available:.2f}"
+        )
+
+    # ---- ADD DONATION ----
+    if action == "add_donation":
+        donor = result.get("donor", "")
+        db.add_donation(amount, donor_name=donor if donor else None)
+        available = db.get_total_donations_available()
+        donor_text = f" from {donor}" if donor else ""
+        return f"Donation of ${amount:.2f}{donor_text} recorded. Total available: ${available:.2f}."
+
+    # ---- ADD CREDIT (third-party payment) ----
+    if action == "add_credit":
+        customers = _fuzzy_find_customer(name)
+        if not customers:
+            return f"No customer found matching '{name}'."
+        customer = customers[0]
+        payer = result.get("payer", "")
+        db.add_credit(customer['id'], amount, payer_name=payer if payer else None, notes="Added via AI chatbot")
+        new_balance = db.get_customer_balance(customer['id'])
+        payer_text = f" from {payer}" if payer else ""
+        if new_balance > 0:
+            return f"Credit of ${amount:.2f}{payer_text} applied to {customer['name']}. Remaining balance: ${new_balance:.2f}."
+        elif new_balance < 0:
+            return f"Credit of ${amount:.2f}{payer_text} applied to {customer['name']}. Customer now has ${abs(new_balance):.2f} in credit."
+        return f"Credit of ${amount:.2f}{payer_text} applied to {customer['name']}. Balance is now $0.00."
+
+    # ---- USE DONATION ----
+    if action == "use_donation":
+        customers = _fuzzy_find_customer(name)
+        if not customers:
+            return f"No customer found matching '{name}'."
+        customer = customers[0]
+        balance = db.get_customer_balance(customer['id'])
+        if balance <= 0:
+            return f"{customer['name']} has no outstanding debt to apply donations to."
+        if amount > balance:
+            return f"Amount ${amount:.2f} exceeds {customer['name']}'s debt of ${balance:.2f}."
+        # Find an available donation to use
+        available = db.get_available_donations()
+        if not available:
+            return "No donations available to use."
+        # Find a donation with enough remaining funds
+        donation = None
+        for d in available:
+            if d['amount_remaining'] >= amount:
+                donation = d
+                break
+        if not donation:
+            # Try to use the largest available
+            available.sort(key=lambda d: d['amount_remaining'], reverse=True)
+            total_avail = sum(d['amount_remaining'] for d in available)
+            if total_avail < amount:
+                return f"Not enough donation funds. Total available: ${total_avail:.2f}, requested: ${amount:.2f}."
+            donation = available[0]
+            if donation['amount_remaining'] < amount:
+                return f"Largest single donation has ${donation['amount_remaining']:.2f}. Try a smaller amount or split manually."
+        result_data = db.use_donation(donation['id'], customer['id'], amount, notes="Applied via AI chatbot")
+        if result_data.get('success'):
+            new_balance = db.get_customer_balance(customer['id'])
+            donor_name = donation.get('donor_name') or 'Anonymous'
+            return f"Applied ${amount:.2f} from donation (by {donor_name}) to {customer['name']}. Remaining balance: ${new_balance:.2f}."
+        return f"Could not apply donation: {result_data.get('message', 'Unknown error')}"
+
+    # ---- DATE LOOKUP ----
+    if action == "date_lookup":
+        date = result.get("date", "")
+        transactions = db.get_transactions_by_date(date, date)
+        if not transactions:
+            return f"No transactions found on {date}."
+        lines = [f"Transactions on {date}:"]
+        total_debt = 0
+        total_payments = 0
+        for t in transactions[:15]:
+            etype = t['entry_type']
+            amt = t['amount']
+            cname = t.get('customer_name', 'Unknown')
+            if etype == 'NEW_DEBT':
+                lines.append(f"- {cname}: +${amt:.2f} (debt)")
+                total_debt += amt
+            elif etype == 'PAYMENT':
+                lines.append(f"- {cname}: -${amt:.2f} (payment)")
+                total_payments += amt
+            else:
+                lines.append(f"- {cname}: ${amt:.2f} ({etype})")
+        if len(transactions) > 15:
+            lines.append(f"...and {len(transactions) - 15} more.")
+        lines.append(f"\nTotal: ${total_debt:.2f} in debts, ${total_payments:.2f} in payments")
+        return "\n".join(lines)
+
+    return "I didn't understand that. Type 'help' to see what I can do."
+
 
 if __name__ == '__main__':
     import sys
