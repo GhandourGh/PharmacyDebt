@@ -7,6 +7,14 @@ from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from io import BytesIO
 from datetime import datetime
 
+# Explicit on all sides: SimpleDocTemplate leaves unstated margins at ~1in by default.
+_PDF_PAGE_MARGINS = dict(
+    leftMargin=1.2 * cm,
+    rightMargin=1.2 * cm,
+    topMargin=0.45 * cm,
+    bottomMargin=0.8 * cm,
+)
+
 
 def format_datetime_12h(dt=None):
     """Format datetime in 12-hour format (e.g., '2026-01-28 12:52 PM')"""
@@ -18,7 +26,7 @@ def format_datetime_12h(dt=None):
 def generate_debt_report(transactions, total_debt, start_date, end_date, customer_name=None):
     """Generate a PDF report of debt transactions"""
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1*cm, bottomMargin=1*cm)
+    doc = SimpleDocTemplate(buffer, pagesize=A4, **_PDF_PAGE_MARGINS)
 
     styles = getSampleStyleSheet()
     # Match styling with the customer / all-customers PDFs
@@ -27,14 +35,16 @@ def generate_debt_report(transactions, total_debt, start_date, end_date, custome
         parent=styles['Heading1'],
         fontSize=18,
         alignment=TA_CENTER,
-        spaceAfter=10
+        spaceAfter=6,
+        spaceBefore=0,
     )
     subtitle_style = ParagraphStyle(
         'CustomSubtitle',
         parent=styles['Normal'],
         fontSize=12,
         alignment=TA_CENTER,
-        spaceAfter=5,
+        spaceAfter=4,
+        spaceBefore=0,
         textColor=colors.grey
     )
     total_style = ParagraphStyle(
@@ -42,8 +52,8 @@ def generate_debt_report(transactions, total_debt, start_date, end_date, custome
         parent=styles['Heading1'],
         fontSize=18,
         alignment=TA_RIGHT,
-        spaceBefore=30,
-        spaceAfter=20,
+        spaceBefore=12,
+        spaceAfter=12,
         textColor=colors.Color(0.8, 0.1, 0.1)
     )
 
@@ -58,7 +68,7 @@ def generate_debt_report(transactions, total_debt, start_date, end_date, custome
     if customer_name:
         range_line = f"Customer: <b>{customer_name}</b><br/>{range_line}"
     elements.append(Paragraph(range_line, subtitle_style))
-    elements.append(Spacer(1, 20))
+    elements.append(Spacer(1, 10))
 
     # Transactions table
     if transactions:
@@ -135,7 +145,7 @@ def generate_debt_report(transactions, total_debt, start_date, end_date, custome
 def generate_debt_report_by_date_range(customers_data, total_debt, start_date, end_date):
     """Generate a PDF report of customers with debts for a date range, formatted like All Customers Debt Report"""
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1*cm, bottomMargin=1*cm)
+    doc = SimpleDocTemplate(buffer, pagesize=A4, **_PDF_PAGE_MARGINS)
 
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
@@ -143,14 +153,16 @@ def generate_debt_report_by_date_range(customers_data, total_debt, start_date, e
         parent=styles['Heading1'],
         fontSize=18,
         alignment=TA_CENTER,
-        spaceAfter=10
+        spaceAfter=6,
+        spaceBefore=0,
     )
     subtitle_style = ParagraphStyle(
         'CustomSubtitle',
         parent=styles['Normal'],
         fontSize=12,
         alignment=TA_CENTER,
-        spaceAfter=20,
+        spaceAfter=8,
+        spaceBefore=0,
         textColor=colors.grey
     )
     customer_name_style = ParagraphStyle(
@@ -178,7 +190,7 @@ def generate_debt_report_by_date_range(customers_data, total_debt, start_date, e
     elements.append(Paragraph("Debt Report", subtitle_style))
     elements.append(Paragraph(f"{start_date} to {end_date}", subtitle_style))
     elements.append(Paragraph(f"Generated on {format_datetime_12h()}", subtitle_style))
-    elements.append(Spacer(1, 20))
+    elements.append(Spacer(1, 10))
 
     # Process each customer (only customers with debt > 0 are included)
     if customers_data:
@@ -260,7 +272,7 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
     """Generate a PDF report for a specific customer.
     If statements_only=True, ledger should contain only OPEN/PARTIAL purchases; no payments are shown."""
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1*cm, bottomMargin=1*cm)
+    doc = SimpleDocTemplate(buffer, pagesize=A4, **_PDF_PAGE_MARGINS)
 
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
@@ -268,7 +280,8 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
         parent=styles['Heading1'],
         fontSize=20,
         alignment=TA_CENTER,
-        spaceAfter=5,
+        spaceAfter=4,
+        spaceBefore=0,
         textColor=colors.Color(0.17, 0.32, 0.51)
     )
     subtitle_style = ParagraphStyle(
@@ -276,14 +289,15 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
         parent=styles['Normal'],
         fontSize=12,
         alignment=TA_CENTER,
-        spaceAfter=15,
+        spaceAfter=8,
+        spaceBefore=0,
         textColor=colors.grey
     )
     customer_name_style = ParagraphStyle(
         'CustomerName',
         parent=styles['Heading2'],
         fontSize=16,
-        spaceBefore=10,
+        spaceBefore=6,
         spaceAfter=5,
         textColor=colors.Color(0.17, 0.32, 0.51)
     )
@@ -517,7 +531,7 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
 def generate_all_customers_debt_report(customers_data, total_debt):
     """Generate a PDF report of all customers with debts, their items, and totals"""
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1*cm, bottomMargin=1*cm)
+    doc = SimpleDocTemplate(buffer, pagesize=A4, **_PDF_PAGE_MARGINS)
 
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
@@ -525,14 +539,16 @@ def generate_all_customers_debt_report(customers_data, total_debt):
         parent=styles['Heading1'],
         fontSize=18,
         alignment=TA_CENTER,
-        spaceAfter=10
+        spaceAfter=6,
+        spaceBefore=0,
     )
     subtitle_style = ParagraphStyle(
         'CustomSubtitle',
         parent=styles['Normal'],
         fontSize=12,
         alignment=TA_CENTER,
-        spaceAfter=20,
+        spaceAfter=8,
+        spaceBefore=0,
         textColor=colors.grey
     )
     customer_name_style = ParagraphStyle(
@@ -559,7 +575,7 @@ def generate_all_customers_debt_report(customers_data, total_debt):
     elements.append(Paragraph("Pharmacy Thabet", title_style))
     elements.append(Paragraph("All Customers Debt Report", subtitle_style))
     elements.append(Paragraph(f"Generated on {format_datetime_12h()}", subtitle_style))
-    elements.append(Spacer(1, 20))
+    elements.append(Spacer(1, 10))
 
     # Process each customer (only customers with debt > 0 are included)
     for customer in customers_data:

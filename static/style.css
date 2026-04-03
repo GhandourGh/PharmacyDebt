@@ -2766,7 +2766,8 @@ tr.voided td {
 /* Print styles */
 @page {
     size: 14.85cm 21cm;
-    margin: 0.6cm 0.7cm 1cm 0.7cm;
+    /* Tighter top margin; increase if your printer clips the header */
+    margin: 0.2cm 0.55cm 0.65cm 0.55cm;
 }
 
 @media print {
@@ -2774,6 +2775,8 @@ tr.voided td {
     /* Receipt-only print: clean A5 page, no app UI */
     body {
         background: #fff !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
 
     /* Never print notifications, toasts, or flash messages */
@@ -2818,9 +2821,11 @@ tr.voided td {
     }
     .print-receipt-only .receipt-header {
         text-align: center;
-        padding-bottom: 0.25cm;
+        padding-top: 0;
+        padding-bottom: 0.2cm;
+        margin-top: 0;
         border-bottom: 1.5pt solid #2c5282;
-        margin-bottom: 0.25cm;
+        margin-bottom: 0.2cm;
     }
     .print-receipt-only .receipt-brand {
         font-size: 1.15rem;
