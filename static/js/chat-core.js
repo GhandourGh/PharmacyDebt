@@ -87,7 +87,7 @@ const ChatCore = (() => {
     if (!_cfg.statusBannerEl) return;
     const instructions = status.setup_instructions || {};
     const msgs = [];
-    if (!status.ollama_available && instructions.ollama) {
+    if (status.ollama_enabled && !status.ollama_available && instructions.ollama) {
       msgs.push(`🧠 <strong>LLM not running</strong> — rule-based mode only. <code>${instructions.ollama}</code>`);
     }
     if (msgs.length > 0) {

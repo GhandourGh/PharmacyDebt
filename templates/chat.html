@@ -262,7 +262,9 @@
 
   // Populate sidebar status
   fetch('/chat/api/status').then(r => r.json()).then(s => {
-    document.getElementById('sb-ollama').textContent = s.ollama_available ? '✅ ' + (s.ollama_model || 'on') : '⚠️ off';
+    const el = document.getElementById('sb-ollama');
+    if (!s.ollama_enabled) el.textContent = '—';
+    else el.textContent = s.ollama_available ? '✅ ' + (s.ollama_model || 'on') : '⚠️ off';
   }).catch(() => {});
 
   ChatCore.loadHistory();

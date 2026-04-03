@@ -75,6 +75,7 @@ Tests use a **temporary** database — your real `pharmacy.db` is not touched.
 
 3. Important keys for the AI assistant (see `.env.example` for full list):
 
+   - **`OLLAMA_ENABLED`** — default **`false`**: no Ollama calls, no “LLM not running” banners; chat uses built-in rules. Set to **`true`** after you install Ollama and pull a model.  
    - `OLLAMA_BASE_URL` — default `http://127.0.0.1:11434`  
    - `OLLAMA_MODEL` — default `qwen3.5:4b`  
    - `SECRET_KEY` — optional but recommended for production  
@@ -106,11 +107,12 @@ curl http://127.0.0.1:11434/api/tags
 Ensure `.env` contains:
 
 ```env
+OLLAMA_ENABLED=true
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=qwen3.5:4b
 ```
 
-Restart `python app.py` after editing `.env`.
+Restart `python app.py` after editing `.env`. Leave `OLLAMA_ENABLED=false` (or omit it) until Ollama is installed if you want a quiet, rule-only chat.
 
 ### Auto-run
 

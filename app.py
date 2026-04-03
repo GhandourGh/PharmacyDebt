@@ -1248,6 +1248,7 @@ def create_demo_data():
 from chatbot.bot import process_message as chat_process, drop_session, iter_chat_sse_events
 from chatbot.ollama_client import (
     is_available as ollama_available,
+    ollama_enabled,
     OLLAMA_BASE_URL as ollama_base_url,
     OLLAMA_MODEL as ollama_model,
 )
@@ -1324,13 +1325,21 @@ def chat_message_stream():
 
 @app.route('/chat/api/status')
 def chat_status():
-    ol_available = ollama_available()
+    enabled = ollama_enabled()
+    ol_available = ollama_available() if enabled else False
+    setup_ollama = None
+    if enabled and not ol_available:
+        setup_ollama = (
+            "Install from https://ollama.com then run: ollama pull "
+            + ollama_model
+        )
     return jsonify({
+        "ollama_enabled": enabled,
         "ollama_available": ol_available,
         "ollama_base_url": ollama_base_url,
         "ollama_model": ollama_model,
         "setup_instructions": {
-            "ollama": "brew install ollama && ollama pull qwen3.5:4b && ollama serve" if not ol_available else None,
+            "ollama": setup_ollama,
         },
     })
 

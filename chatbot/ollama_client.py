@@ -54,6 +54,14 @@ OLLAMA_THINK = os.environ.get("OLLAMA_THINK", "false").strip().lower() in ("1", 
 OLLAMA_CONV_NUM_PREDICT = int(os.environ.get("OLLAMA_CONV_NUM_PREDICT", "160"))
 OLLAMA_INTENT_NUM_PREDICT = int(os.environ.get("OLLAMA_INTENT_NUM_PREDICT", "120"))
 
+
+def ollama_enabled() -> bool:
+    """
+    If false (default): skip all Ollama requests and UI install hints until you set OLLAMA_ENABLED=true.
+    """
+    return os.environ.get("OLLAMA_ENABLED", "false").strip().lower() in ("1", "true", "yes")
+
+
 # ---------------------------------------------------------------------------
 # System prompt — bilingual, JSON-enforcing, pharmacy-domain
 # ---------------------------------------------------------------------------
@@ -126,6 +134,9 @@ _ollama_available_cache: Optional[bool] = None
 def is_available() -> bool:
     """Check if Ollama is reachable at OLLAMA_BASE_URL. Caches True; False is re-probed next call."""
     global _ollama_available_cache
+
+    if not ollama_enabled():
+        return False
 
     if _ollama_available_cache is True:
         return True
@@ -549,6 +560,9 @@ def stream_conversational_response(text: str, context: list = None,
     Falls back to a single yield if Ollama is unavailable.
     """
     global _ollama_available_cache
+
+    if not ollama_enabled():
+        return
 
     if not is_available():
         invalidate_cache()

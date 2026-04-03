@@ -32,6 +32,15 @@ _LLM_UNAVAILABLE = (
     "You can still use the main screens for balances and payments."
 )
 
+_RULES_ONLY_CHAT_FALLBACK = (
+    "I'm in **quick mode** (built-in commands only). Try **help** for examples — payments, debt, "
+    "balances, list debtors, and undo all work here."
+)
+
+
+def _conversational_fallback_text() -> str:
+    return _LLM_UNAVAILABLE if ollama_client.ollama_enabled() else _RULES_ONLY_CHAT_FALLBACK
+
 _MAX_TOP_DEBTORS = max(1, min(int(os.environ.get("CHAT_TOP_DEBTORS_MAX", "500")), 2000))
 
 _TOP_DEBTOR_PATTERNS = (
@@ -333,7 +342,7 @@ def _do_help_streaming(session_id: str, ctx: dict, text: str, stream: bool) -> d
             'context': chat_ctx,
             'language_hint': lang,
             'data_snapshot': _build_pharmacy_data_snapshot(),
-            'fallback': _LLM_UNAVAILABLE,
+            'fallback': _conversational_fallback_text(),
         }
         return result
     return _conversational_reply(text, session_id, ctx, 'help')
@@ -641,7 +650,7 @@ def _conversational_reply(text: str, session_id: str, ctx: dict, intent: str) ->
     if response:
         response = ollama_client.polish_chat_reply(response)
     if not response:
-        response = _LLM_UNAVAILABLE
+        response = _conversational_fallback_text()
     return _r(response, session_id=session_id, ctx=ctx, intent=intent)
 
 
@@ -723,7 +732,7 @@ def _execute_turn_impl(text: str, session_id: str, ctx: dict) -> dict:
                 'data_snapshot': snap,
                 'num_predict': spec_np,
                 'temperature': spec_temp,
-                'fallback': _LLM_UNAVAILABLE,
+                'fallback': _conversational_fallback_text(),
             }
             return result
         return _conversational_reply(text, session_id, ctx, intent)
