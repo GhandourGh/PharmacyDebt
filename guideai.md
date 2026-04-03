@@ -43,7 +43,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Default URL: `http://127.0.0.1:5055`
+Default URL: `http://127.0.0.1:5001`
 
 ---
 
