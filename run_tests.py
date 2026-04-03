@@ -2,7 +2,7 @@
 """Single command to run the full test suite.
 
 Usage:
-    python run_tests.py            # run all tests
+    python run_tests.py            # run all tests (installs hashlib log filter first; quieter than `python -m pytest` on some Python builds)
     python run_tests.py -k fifo    # run only tests matching 'fifo'
     python run_tests.py --unit     # unit tests only (validators + database)
     python run_tests.py --integ    # integration tests only
@@ -10,6 +10,11 @@ Usage:
 """
 
 import sys
+
+from runtime_logging_filter import install_hashlib_openssl_noise_filter
+
+install_hashlib_openssl_noise_filter()
+
 import pytest
 
 

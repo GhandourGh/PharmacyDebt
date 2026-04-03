@@ -40,6 +40,9 @@ Thumbs.db
 static/uploads/*
 !static/uploads/.gitignore
 
+# TTS audio output
+static/audio/*.wav
+
 # Logs
 *.log
 

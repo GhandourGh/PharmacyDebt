@@ -1,7 +1,14 @@
+try:
+    from runtime_logging_filter import install_hashlib_openssl_noise_filter
+
+    install_hashlib_openssl_noise_filter()
+except ImportError:
+    pass
+
+import hashlib
 import sqlite3
 from datetime import datetime, timedelta
 from contextlib import contextmanager
-import hashlib
 import os
 import csv
 import io
@@ -221,6 +228,34 @@ def init_db():
                 notes TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (donation_id) REFERENCES donations (id)
+            )
+        ''')
+
+        # Customer aliases (multi-language name variations)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS customer_aliases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                customer_id INTEGER NOT NULL,
+                alias TEXT NOT NULL,
+                alias_normalized TEXT NOT NULL,
+                language TEXT DEFAULT 'en',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (customer_id) REFERENCES customers (id),
+                UNIQUE(customer_id, alias_normalized)
+            )
+        ''')
+
+        # Chat history for AI assistant
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS chat_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system')),
+                message TEXT NOT NULL,
+                intent TEXT,
+                entities TEXT,
+                language TEXT DEFAULT 'en',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
 
@@ -764,7 +799,7 @@ def void_entry(ledger_id, reason, user_id=None):
         cursor.execute('''
             UPDATE ledger SET is_voided = 1, voided_by = ?, voided_at = ?, void_reason = ?
             WHERE id = ?
-        ''', (user_id, datetime.now(), reason, ledger_id))
+        ''', (user_id, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), reason, ledger_id))
 
         if user_id:
             log_audit(user_id, 'VOID_ENTRY', 'ledger', ledger_id, str(dict(entry)), f'Reason: {reason}', conn=conn)
@@ -1463,7 +1498,7 @@ def set_setting(key, value):
         cursor.execute('''
             INSERT OR REPLACE INTO settings (key, value, updated_at)
             VALUES (?, ?, ?)
-        ''', (key, value, datetime.now()))
+        ''', (key, value, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
         conn.commit()
 
 # ============== BACKWARD COMPATIBILITY ==============
@@ -1673,7 +1708,7 @@ def delete_ledger_entry(ledger_id):
             UPDATE ledger 
             SET is_deleted = 1, deleted_at = ?
             WHERE id = ?
-        ''', (datetime.now(), ledger_id))
+        ''', (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), ledger_id))
         
         conn.commit()
         return True
@@ -2662,3 +2697,103 @@ def create_demo_data():
         conn.commit()
     
     return True
+
+
+# ---------------------------------------------------------------------------
+# Customer Aliases
+# ---------------------------------------------------------------------------
+
+def add_customer_alias(customer_id, alias, language='en'):
+    from name_matcher import normalize_name
+    alias_normalized = normalize_name(alias)
+    if not alias_normalized:
+        return None
+    with get_db() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                INSERT OR IGNORE INTO customer_aliases (customer_id, alias, alias_normalized, language)
+                VALUES (?, ?, ?, ?)
+            ''', (customer_id, alias.strip(), alias_normalized, language))
+            conn.commit()
+            return cursor.lastrowid
+        except Exception:
+            return None
+
+
+def get_customer_aliases(customer_id):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM customer_aliases WHERE customer_id = ?', (customer_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def get_all_aliases():
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT ca.*, c.name as customer_name
+            FROM customer_aliases ca
+            JOIN customers c ON ca.customer_id = c.id
+            WHERE c.is_active = 1
+        ''')
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def find_customer_by_alias(alias_text):
+    from name_matcher import normalize_name
+    alias_norm = normalize_name(alias_text)
+    if not alias_norm:
+        return None
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT c.* FROM customers c
+            JOIN customer_aliases ca ON c.id = ca.customer_id
+            WHERE ca.alias_normalized = ? AND c.is_active = 1
+        ''', (alias_norm,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def delete_customer_alias(alias_id):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM customer_aliases WHERE id = ?', (alias_id,))
+        conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Chat History
+# ---------------------------------------------------------------------------
+
+def save_chat_message(session_id, role, message, intent=None, entities=None, language='en'):
+    import json
+    entities_json = json.dumps(entities) if entities else None
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO chat_history (session_id, role, message, intent, entities, language)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (session_id, role, message, intent, entities_json, language))
+        conn.commit()
+        return cursor.lastrowid
+
+
+def get_chat_history(session_id, limit=50):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT * FROM chat_history
+            WHERE session_id = ?
+            ORDER BY created_at ASC
+            LIMIT ?
+        ''', (session_id, limit))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def clear_chat_history(session_id):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM chat_history WHERE session_id = ?', (session_id,))
+        conn.commit()

@@ -2765,11 +2765,8 @@ tr.voided td {
 
 /* Print styles */
 @page {
-    size: A5;
-    margin: 0.8cm;
-    /* A5 dimensions: 14.85cm x 21cm (half of A4) */
-    /* Note: Browser headers/footers (time, URL/IP) are controlled by browser print settings */
-    /* Users need to disable "Headers and footers" in their browser's print dialog */
+    size: 14.85cm 21cm;
+    margin: 0.6cm 0.7cm 1cm 0.7cm;
 }
 
 @media print {
@@ -2782,7 +2779,15 @@ tr.voided td {
     /* Never print notifications, toasts, or flash messages */
     .alert,
     .toast-container,
-    .toast {
+    .toast,
+    .undo-toast,
+    #cbUndoToast {
+        display: none !important;
+        visibility: hidden !important;
+    }
+
+    /* Hide the floating AI chatbot widget entirely */
+    #chatBubbleWidget {
         display: none !important;
         visibility: hidden !important;
     }
@@ -2800,12 +2805,12 @@ tr.voided td {
     /* Dedicated A5 receipt template – own layout, no app UI */
     .print-receipt-only .receipt-page {
         width: 100%;
-        max-width: 13.25cm; /* A5 content width (14.85cm - 1.6cm margin) */
-        margin: 0 auto;
+        max-width: none;
+        margin: 0;
         padding: 0;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-        font-size: 11pt;
-        line-height: 1.4;
+        font-size: 10pt;
+        line-height: 1.35;
         color: #1a202c;
         background: #fff;
         -webkit-print-color-adjust: exact;
@@ -2813,47 +2818,48 @@ tr.voided td {
     }
     .print-receipt-only .receipt-header {
         text-align: center;
-        padding-bottom: 0.6cm;
-        border-bottom: 2px solid #2c5282;
-        margin-bottom: 0.5cm;
+        padding-bottom: 0.25cm;
+        border-bottom: 1.5pt solid #2c5282;
+        margin-bottom: 0.25cm;
     }
     .print-receipt-only .receipt-brand {
-        font-size: 1.35rem;
+        font-size: 1.15rem;
         font-weight: 700;
         color: #2c5282;
         letter-spacing: 0.02em;
         margin: 0;
+        line-height: 1.2;
     }
     .print-receipt-only .receipt-subtitle {
-        font-size: 0.75rem;
+        font-size: 0.7rem;
         color: #718096;
-        margin: 0.2rem 0 0;
+        margin: 0.1rem 0 0;
     }
     .print-receipt-only .receipt-customer {
-        margin-bottom: 0.5cm;
+        margin-bottom: 0.25cm;
     }
     .print-receipt-only .receipt-customer-name {
-        font-size: 1.1rem;
+        font-size: 1rem;
         font-weight: 700;
         color: #1a202c;
-        margin: 0 0 0.2rem;
+        margin: 0 0 0.1rem;
     }
     .print-receipt-only .receipt-customer-line {
-        font-size: 0.7rem;
+        font-size: 0.65rem;
         color: #4a5568;
-        margin: 0.1rem 0;
+        margin: 0.05rem 0;
     }
     .print-receipt-only .receipt-summary {
-        margin-bottom: 0.5cm;
+        margin-bottom: 0.25cm;
     }
     .print-receipt-only .receipt-summary-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 0.75rem;
-        margin-bottom: 0.35rem;
+        font-size: 0.7rem;
+        margin-bottom: 0.15rem;
     }
     .print-receipt-only .receipt-summary-table td {
-        padding: 0.35rem 0.5rem;
+        padding: 0.2rem 0.4rem;
         border: 1px solid #e2e8f0;
     }
     .print-receipt-only .receipt-summary-label {
@@ -2867,32 +2873,32 @@ tr.voided td {
         color: #c53030;
     }
     .print-receipt-only .receipt-debt-left {
-        font-size: 1rem;
+        font-size: 0.85rem;
         font-weight: 700;
         color: #c53030;
         text-align: center;
-        margin: 0.25rem 0 0;
+        margin: 0.15rem 0 0;
     }
     .print-receipt-only .receipt-debt-left.receipt-credit,
     .print-receipt-only .receipt-summary-value.receipt-credit {
         color: #16a34a !important;
     }
     .print-receipt-only .receipt-items {
-        margin-bottom: 0.5cm;
+        margin-bottom: 0.3cm;
     }
     .print-receipt-only .receipt-section-title {
-        font-size: 0.85rem;
+        font-size: 0.8rem;
         font-weight: 700;
         color: #2c5282;
-        margin: 0 0 0.3rem;
+        margin: 0 0 0.2rem;
     }
     .print-receipt-only .receipt-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 0.7rem;
+        font-size: 0.65rem;
     }
     .print-receipt-only .receipt-th {
-        padding: 0.35rem 0.4rem;
+        padding: 0.25rem 0.35rem;
         text-align: left;
         font-weight: 700;
         background: #2c5282;
@@ -2903,7 +2909,7 @@ tr.voided td {
         text-align: right;
     }
     .print-receipt-only .receipt-td {
-        padding: 0.35rem 0.4rem;
+        padding: 0.25rem 0.35rem;
         border: 1px solid #e2e8f0;
     }
     .print-receipt-only .receipt-tr:nth-child(even) {
@@ -2914,85 +2920,66 @@ tr.voided td {
         font-weight: 600;
     }
     .print-receipt-only .receipt-empty {
-        font-size: 0.75rem;
+        font-size: 0.7rem;
         color: #718096;
-        margin: 0.25rem 0;
+        margin: 0.15rem 0;
+    }
+
+    /* Receipt table pagination: header repeats, rows stay intact, table spans pages */
+    .print-receipt-only .receipt-table {
+        display: table !important;
+        page-break-inside: auto !important;
+        break-inside: auto !important;
+    }
+    .print-receipt-only .receipt-table thead {
+        display: table-header-group !important;
+    }
+    .print-receipt-only .receipt-table tbody {
+        display: table-row-group !important;
+        page-break-inside: auto !important;
+        break-inside: auto !important;
+    }
+    .print-receipt-only .receipt-tr {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    .print-receipt-only .receipt-items {
+        overflow: visible !important;
+        page-break-inside: auto !important;
+        break-inside: auto !important;
     }
     .print-receipt-only .receipt-footer {
-        font-size: 0.65rem;
+        font-size: 0.6rem;
         color: #a0aec0;
         text-align: center;
-        margin-top: 0.6cm;
-        padding-top: 0.3cm;
+        margin-top: 0.3cm;
+        padding-top: 0.15cm;
         border-top: 1px solid #e2e8f0;
     }
 
     /* Hide navbar and app chrome so only receipt is visible */
-    .navbar, .nav-wrapper-new, .btn, .quick-actions, .search-container, .modal-overlay, .history-filters, .btn-icon-delete, .profile-card-menu, .page-header .btn-group {
+    .navbar, .nav-wrapper-new, .btn, .quick-actions, .search-container,
+    .modal-overlay, .history-filters, .btn-icon-delete, .profile-card-menu,
+    .page-header .btn-group {
         display: none !important;
     }
 
-    /* When only receipt is shown: reset main container so receipt has full A5 width */
+    /* When only receipt is shown: reset main container so receipt has full width */
     main.container {
         max-width: none !important;
         padding: 0 !important;
-        width: 100% !important;
-    }
-
-    /* Hide menu buttons and navigation links in navbar when printing */
-    .nav-menu-btn, #menuToggle, #desktopMenuDropdown, #mobileMenu, 
-    button[onclick="toggleDesktopMenu()"],
-    .nav-wrapper-new nav > div,
-    .nav-wrapper-new nav > button {
-        display: none !important;
-    }
-
-    /* Hide ALL images in navbar when printing */
-    .nav-wrapper-new nav img,
-    .nav-wrapper-new nav a img,
-    .nav-wrapper-new nav a[href*="dashboard"] img {
-        display: none !important;
-        visibility: hidden !important;
-        width: 0 !important;
-        height: 0 !important;
-    }
-
-    /* Style the link wrapper for print */
-    .nav-wrapper-new nav a[href*="dashboard"] {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        text-decoration: none !important;
-        color: #000 !important;
-        gap: 0 !important;
-        width: 100% !important;
-    }
-
-    /* Force show Pharmacy Thabet text - override Tailwind's hidden class completely */
-    .nav-wrapper-new nav a[href*="dashboard"] span.hidden,
-    .nav-wrapper-new nav a[href*="dashboard"] span,
-    .nav-wrapper-new nav span:not([style*="display: none"]) {
-        display: inline-block !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        font-size: 1.1rem !important;
-        font-weight: 700 !important;
-        color: #000 !important;
         margin: 0 !important;
-        padding: 0 !important;
+        width: 100% !important;
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
     }
 
-    /* Make navbar show Pharmacy Thabet prominently and center it */
-    .nav-wrapper-new nav {
-        justify-content: center !important;
-        align-items: center !important;
-        padding: 0.5rem 1rem !important;
-    }
-
-    .nav-wrapper-new nav > a[href*="dashboard"] {
-        margin: 0 auto !important;
-        flex: 0 0 auto !important;
-    }
+    /* Undo .table-responsive-cards mobile card layout for print */
+    .table-responsive-cards thead          { display: table-header-group !important; }
+    .table-responsive-cards tbody tr       { display: table-row !important; padding: 0 !important; margin-bottom: 0 !important; border: none !important; box-shadow: none !important; }
+    .table-responsive-cards td             { display: table-cell !important; justify-content: initial !important; }
+    .table-responsive-cards td::before     { content: none !important; }
 
     /* Hide View Details button and eye icons in history */
     .btn-view-items, .btn-icon-toggle {
@@ -3003,12 +2990,15 @@ tr.voided td {
         max-width: 100%;
         padding: 0;
         width: 100%;
+        overflow: visible !important;
     }
 
-    /* Optimize for A5 paper size */
+    /* Optimize for print: let @page handle sizing, don't constrain body */
     body {
         width: 100%;
-        max-width: 13.25cm; /* A5 width (14.85cm) minus margins (1.6cm) */
+        max-width: none;
+        orphans: 3;
+        widows: 3;
     }
 
     .card {
@@ -3046,21 +3036,49 @@ tr.voided td {
         display: none !important;
     }
 
-    /* Better table printing */
-    table {
-        width: 100%;
-        border-collapse: collapse;
+    /* Reset overflow on containers so content flows across pages */
+    .table-container {
+        overflow: visible !important;
+        border: none !important;
+        box-shadow: none !important;
     }
 
-    table th, table td {
-        border: 1px solid #ddd;
-        padding: 0.5rem;
-    }
+    /* Force proper table display (override mobile card layout at A5 width) */
+    table                { display: table !important; width: 100%; border-collapse: collapse; }
+    table thead           { display: table-header-group !important; }
+    table tbody           { display: table-row-group !important; }
+    table tfoot           { display: table-footer-group !important; }
+    table tr              { display: table-row !important; }
+    table th, table td    { display: table-cell !important; border: 1px solid #ddd; padding: 0.5rem; }
+
+    /* Undo mobile card layout that fires at A5 width (<768px) */
+    .history-table thead              { display: table-header-group !important; }
+    .history-table tbody tr           { display: table-row !important; padding: 0 !important; border-bottom: none !important; }
+    .history-table td                 { display: table-cell !important; justify-content: initial !important; }
+    .history-table td::before         { content: none !important; }
 
     table thead {
         background-color: #f5f5f5 !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
+    }
+
+    /* Page-break rules: rows stay intact, tables span pages freely */
+    table {
+        page-break-inside: auto !important;
+        break-inside: auto !important;
+    }
+    table tr {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    table thead {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+    }
+    table tbody {
+        page-break-inside: auto !important;
+        break-inside: auto !important;
     }
 
     /* Page header adjustments */

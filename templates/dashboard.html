@@ -26,7 +26,7 @@
         <div class="stat-header">
             <div>
                 <div class="stat-label">Total Owed to You</div>
-                <div class="stat-value">${{ "%.2f"|format(total_debt) }}</div>
+                <div class="stat-value" id="dashStatTotalDebt">${{ "%.2f"|format(total_debt) }}</div>
             </div>
             <div class="stat-icon">
                 <i data-lucide="dollar-sign" style="width: 24px; height: 24px;"></i>
@@ -37,7 +37,7 @@
         <div class="stat-header">
             <div>
                 <div class="stat-label">Customers with Debts</div>
-                <div class="stat-value" style="color: #2563eb;">{{ customers_with_debt_count }}</div>
+                <div class="stat-value" id="dashStatCustomersDebt" style="color: #2563eb;">{{ customers_with_debt_count }}</div>
             </div>
             <div class="stat-icon">
                 <i data-lucide="users" style="width: 24px; height: 24px;"></i>
@@ -49,7 +49,7 @@
         <div class="stat-header">
             <div>
                 <div class="stat-label">Today's Payments</div>
-                <div class="stat-value">${{ "%.2f"|format(daily_stats.total_payments or 0) }}</div>
+                <div class="stat-value" id="dashStatTodayPayments">${{ "%.2f"|format(daily_stats.total_payments or 0) }}</div>
             </div>
             <div class="stat-icon">
                 <i data-lucide="banknote" style="width: 24px; height: 24px;"></i>
@@ -61,7 +61,7 @@
             <div>
                 <div class="stat-label">Today's Debt Added</div>
                 {% set today_debt = daily_stats.total_debt or 0 %}
-                <div class="stat-value" style="color: #d97706;">${{ "%.2f"|format(today_debt) }}</div>
+                <div class="stat-value" id="dashStatTodayDebt" style="color: #d97706;">${{ "%.2f"|format(today_debt) }}</div>
             </div>
             <div class="stat-icon">
                 <i data-lucide="receipt" style="width: 24px; height: 24px;"></i>
@@ -93,7 +93,7 @@
 </div>
 <div class="customer-cards-grid" id="customerCardsGrid">
     {% for customer in all_customers %}
-    <div class="profile-card {% if customer.debt == 0 and not customer.has_credit %}profile-card-no-debt{% endif %} {% if customer.id not in recent_customer_ids %}customer-card-hidden{% endif %}" data-customer-name="{{ customer.name|lower }}" data-customer-phone="{{ (customer.phone or '')|lower }}">
+    <div class="profile-card {% if customer.debt == 0 and not customer.has_credit %}profile-card-no-debt{% endif %} {% if customer.id not in recent_customer_ids %}customer-card-hidden{% endif %}" data-customer-id="{{ customer.id }}" data-customer-name="{{ customer.name|lower }}" data-customer-phone="{{ (customer.phone or '')|lower }}">
         <div class="profile-card-menu">
             <button class="profile-menu-btn" onclick="toggleProfileMenu(this)">
                 <i data-lucide="more-horizontal" style="width: 20px; height: 20px;"></i>
@@ -642,10 +642,11 @@
         })
         .then(response => {
             if (response.ok) {
-                // Close modal
                 closeModal('quickDebtModal');
-                // Reload page to update stats
-                window.location.reload();
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i data-lucide="check"></i> Add Debt';
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                window.dispatchEvent(new CustomEvent('pharmacy:ledger-updated', { detail: { ledger_changed: true } }));
             } else {
                 throw new Error('Failed to add debt');
             }
@@ -681,10 +682,11 @@
         })
         .then(response => {
             if (response.ok) {
-                // Close modal
                 closeModal('quickPayModal');
-                // Reload page to update stats
-                window.location.reload();
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i data-lucide="check"></i> Record Payment';
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                window.dispatchEvent(new CustomEvent('pharmacy:ledger-updated', { detail: { ledger_changed: true } }));
             } else {
                 throw new Error('Failed to record payment');
             }
@@ -911,6 +913,61 @@
             });
         }
 
+    });
+
+    function applyDashboardLive(data) {
+        if (!data) return;
+        const elTd = document.getElementById('dashStatTotalDebt');
+        if (elTd) elTd.textContent = '$' + Number(data.total_debt).toFixed(2);
+        const elCd = document.getElementById('dashStatCustomersDebt');
+        if (elCd) elCd.textContent = String(data.customers_with_debt_count);
+        const ds = data.daily_stats || {};
+        const elTp = document.getElementById('dashStatTodayPayments');
+        if (elTp) elTp.textContent = '$' + Number(ds.total_payments || 0).toFixed(2);
+        const elTdd = document.getElementById('dashStatTodayDebt');
+        if (elTdd) elTdd.textContent = '$' + Number(ds.total_debt || 0).toFixed(2);
+
+        const byId = new Map((data.customers || []).map(c => [Number(c.id), c]));
+        document.querySelectorAll('.profile-card[data-customer-id]').forEach(card => {
+            const id = parseInt(card.getAttribute('data-customer-id'), 10);
+            const c = byId.get(id);
+            if (!c) return;
+            const rawDebt = Number(c.debt);
+            const hasCredit = !!c.has_credit;
+            const displayDebt = Number(c.display_debt);
+            const noDebt = rawDebt === 0 && !hasCredit;
+
+            card.classList.toggle('profile-card-no-debt', noDebt);
+            const av = card.querySelector('.profile-avatar-large');
+            if (av) av.classList.toggle('profile-avatar-gray', noDebt);
+            const nm = card.querySelector('.profile-name');
+            if (nm) nm.classList.toggle('profile-name-gray', noDebt);
+            card.querySelectorAll('.profile-phone').forEach(ph => {
+                ph.classList.toggle('profile-phone-gray', noDebt);
+            });
+
+            const badge = card.querySelector('.profile-debt-badge');
+            const amountEl = card.querySelector('.debt-amount');
+            const labelEl = card.querySelector('.debt-label');
+            if (amountEl) amountEl.textContent = '$' + displayDebt.toFixed(2);
+            if (labelEl) {
+                if (hasCredit) labelEl.textContent = 'Has Credit';
+                else if (rawDebt === 0) labelEl.textContent = 'Balance';
+                else labelEl.textContent = 'Owes';
+            }
+            if (badge) {
+                badge.classList.remove('profile-debt-badge-credit', 'profile-debt-badge-gray');
+                if (hasCredit) badge.classList.add('profile-debt-badge-credit');
+                else if (rawDebt === 0) badge.classList.add('profile-debt-badge-gray');
+            }
+        });
+    }
+
+    window.addEventListener('pharmacy:ledger-updated', function() {
+        fetch('/api/dashboard-live')
+            .then(r => (r.ok ? r.json() : Promise.reject()))
+            .then(applyDashboardLive)
+            .catch(function() {});
     });
 
     // Confirm delete with dialog
