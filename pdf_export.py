@@ -268,9 +268,10 @@ def generate_debt_report_by_date_range(customers_data, total_debt, start_date, e
     return buffer
 
 
-def generate_customer_report(customer, ledger, payments, total_debt, total_debts=0, total_payments=0, statements_only=False):
+def generate_customer_report(customer, ledger, payments, total_debt, total_debts=0, total_payments=0, statements_only=False, account_full=False):
     """Generate a PDF report for a specific customer.
-    If statements_only=True, ledger should contain only OPEN/PARTIAL purchases; no payments are shown."""
+    statements_only=True: unpaid purchases only.
+    account_full=True: all purchases with paid/unpaid/partial status."""
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, **_PDF_PAGE_MARGINS)
 
@@ -340,8 +341,14 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
     elements = []
 
     # Title
+    if account_full:
+        report_subtitle = "Account Statement"
+    elif statements_only:
+        report_subtitle = "Outstanding Statement"
+    else:
+        report_subtitle = "Customer Report"
     elements.append(Paragraph("Pharmacy Thabet", title_style))
-    elements.append(Paragraph("Customer Report", subtitle_style))
+    elements.append(Paragraph(report_subtitle, subtitle_style))
     elements.append(Spacer(1, 15))
 
     # Customer Info Box
@@ -359,8 +366,19 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
     
     elements.append(Spacer(1, 15))
 
-    # Summary Section (simplified when statements_only: show amount due or credit balance)
-    if statements_only:
+    # Summary Section
+    if account_full:
+        balance_due = max(0.0, float(total_debt)) if total_debt > 0 else 0.0
+        if total_debt < 0:
+            balance_due_label = Paragraph(f"<font color='green'>Credit ${abs(total_debt):.2f}</font>", styles['Normal'])
+        else:
+            balance_due_label = Paragraph(f"<font color='red'>${balance_due:.2f}</font>", styles['Normal'])
+        summary_data = [
+            ['Total Purchases', Paragraph(f"${total_debts:.2f}", styles['Normal'])],
+            ['Total Paid', Paragraph(f"<font color='green'>${total_payments:.2f}</font>", styles['Normal'])],
+            ['Balance Due', balance_due_label],
+        ]
+    elif statements_only:
         if total_debt < 0:
             summary_data = [
                 ['Credit Balance', Paragraph(f"<font color='green'>${abs(total_debt):.2f}</font>", styles['Normal'])]
@@ -397,32 +415,46 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
     
     elements.append(Spacer(1, 20))
 
-    # Debt Left (highlighted)
-    balance_color = "red" if total_debt > 0 else "green"
-    balance_text = "Debt Left" if total_debt > 0 else "Credit Balance"
-    elements.append(Paragraph(f"<b>{balance_text}: <font color='{balance_color}'>${abs(total_debt):.2f}</font></b>", balance_style))
+    # Balance highlight
+    if account_full:
+        if total_debt <= 0:
+            balance_color = "green"
+            balance_line = f"Balance Due: ${abs(total_debt):.2f}" if total_debt < 0 else "Balance Due: $0.00"
+        else:
+            balance_color = "red"
+            balance_line = f"Balance Due: ${total_debt:.2f}"
+        elements.append(Paragraph(f"<b><font color='{balance_color}'>{balance_line}</font></b>", balance_style))
+    else:
+        balance_color = "red" if total_debt > 0 else "green"
+        balance_text = "Debt Left" if total_debt > 0 else "Credit Balance"
+        elements.append(Paragraph(f"<b>{balance_text}: <font color='{balance_color}'>${abs(total_debt):.2f}</font></b>", balance_style))
 
     elements.append(Spacer(1, 20))
 
-    # Transaction History (statement: only unpaid items; no payment rows)
-    section_title = "Outstanding Items" if statements_only else "Transaction History"
+    if account_full:
+        section_title = "All Items"
+    elif statements_only:
+        section_title = "Outstanding Items"
+    else:
+        section_title = "Transaction History"
     elements.append(Paragraph(section_title, section_style))
     if ledger:
-        if statements_only:
-            # Table: Date, Items, Amount Due, Notes — no Type, no Payment
-            data = [['Date', 'Items', 'Amount Due', 'Notes']]
+        status_colors = {'Paid': 'green', 'Unpaid': 'red', 'Partial': '#d97706'}
+        if account_full:
+            data = [['Date', 'Items', 'Total', 'Status', 'Due', 'Notes']]
             for entry in ledger:
                 date_val = entry.get('created_at', '-')
                 if date_val and date_val != '-':
                     date_val = date_val[:10]
-                amount = entry.get('amount', 0) or 0
-                remaining = entry.get('remaining_amount')
-                if remaining is not None:
-                    amount_due = remaining
-                else:
-                    amount_due = amount
+                total_amt = float(entry.get('amount', 0) or 0)
+                due_amt = float(entry.get('amount_due', entry.get('remaining_amount', 0)) or 0)
+                label = entry.get('status_label', 'Unpaid')
+                status_col = Paragraph(
+                    f"<font color='{status_colors.get(label, 'black')}'><b>{label}</b></font>",
+                    styles['Normal']
+                )
                 items = entry.get('items', [])
-                if items and len(items) > 0:
+                if items:
                     item_list = []
                     for item in items:
                         product_name = item.get('product_name', 'Unknown')
@@ -433,9 +465,32 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
                     items_col = "-"
                 notes_text = entry.get('notes') or entry.get('description') or '-'
                 notes_col = Paragraph(notes_text, styles['Normal']) if notes_text != '-' else '-'
-                data.append([date_val, items_col, f"${amount_due:.2f}", notes_col])
+                data.append([date_val, items_col, f"${total_amt:.2f}", status_col, f"${due_amt:.2f}", notes_col])
+            col_widths = [2*cm, 5.5*cm, 1.8*cm, 1.8*cm, 1.8*cm, 2.5*cm]
+            align_right_cols = (2, 4)
+        elif statements_only:
+            data = [['Date', 'Items', 'Amount Due', 'Notes']]
+            for entry in ledger:
+                date_val = entry.get('created_at', '-')
+                if date_val and date_val != '-':
+                    date_val = date_val[:10]
+                remaining = entry.get('remaining_amount')
+                amount_col = remaining if remaining is not None else (entry.get('amount', 0) or 0)
+                items = entry.get('items', [])
+                if items:
+                    item_list = []
+                    for item in items:
+                        product_name = item.get('product_name', 'Unknown')
+                        quantity = item.get('quantity', 1)
+                        item_list.append(f"{product_name} (x{quantity})" if quantity > 1 else product_name)
+                    items_col = Paragraph(", ".join(item_list), styles['Normal'])
+                else:
+                    items_col = "-"
+                notes_text = entry.get('notes') or entry.get('description') or '-'
+                notes_col = Paragraph(notes_text, styles['Normal']) if notes_text != '-' else '-'
+                data.append([date_val, items_col, f"${float(amount_col):.2f}", notes_col])
             col_widths = [2.5*cm, 8*cm, 2.5*cm, 3*cm]
-            align_right_col = 2
+            align_right_cols = (2,)
         else:
             data = [['Date', 'Type', 'Items', 'Debt Added', 'Payment', 'Notes']]
             for entry in ledger:
@@ -478,7 +533,7 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
                 notes_col = Paragraph(notes_text, styles['Normal']) if notes_text != '-' else '-'
                 data.append([date_val, type_str, items_col, debt_col, payment_col, notes_col])
             col_widths = [2.5*cm, 2*cm, 7*cm, 2.5*cm, 2.5*cm, 3*cm]
-            align_right_col = (3, 4)
+            align_right_cols = (3, 4)
 
         table = Table(data, colWidths=col_widths)
         table_style = [
@@ -486,11 +541,11 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 0), (-1, 0), 9 if account_full else 10),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('TOPPADDING', (0, 0), (-1, 0), 12),
             ('GRID', (0, 0), (-1, -1), 1, colors.Color(0.9, 0.9, 0.9)),
-            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('FONTSIZE', (0, 1), (-1, -1), 8 if account_full else 9),
             ('TOPPADDING', (0, 1), (-1, -1), 8),
             ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
             ('LEFTPADDING', (0, 1), (-1, -1), 6),
@@ -499,9 +554,11 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ('WORDWRAP', (1, 1), (1, -1), True),
         ]
-        if statements_only:
-            table_style.append(('ALIGN', (align_right_col, 0), (align_right_col, -1), 'RIGHT'))
-            table_style.append(('WORDWRAP', (3, 1), (3, -1), True))
+        if account_full or statements_only:
+            for col in align_right_cols:
+                table_style.append(('ALIGN', (col, 0), (col, -1), 'RIGHT'))
+            notes_col_idx = 5 if account_full else 3
+            table_style.append(('WORDWRAP', (notes_col_idx, 1), (notes_col_idx, -1), True))
         else:
             table_style.append(('ALIGN', (3, 0), (4, -1), 'RIGHT'))
             table_style.append(('WORDWRAP', (2, 1), (2, -1), True))
@@ -509,7 +566,12 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
         table.setStyle(TableStyle(table_style))
         elements.append(table)
     else:
-        msg = "No outstanding items." if statements_only else "No transaction history."
+        if account_full:
+            msg = "No items on account."
+        elif statements_only:
+            msg = "No outstanding items."
+        else:
+            msg = "No transaction history."
         elements.append(Paragraph(msg, styles['Normal']))
 
     # Footer

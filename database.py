@@ -903,6 +903,93 @@ def get_unpaid_debts(customer_id):
         return entries
 
 
+def get_payment_receipt_entries(customer_id, payment_id):
+    """Replay FIFO and return NEW_DEBT rows that received funds from a PAYMENT entry.
+
+    Returns (payment_entry, receipt_entries). Each receipt entry includes amount_paid
+    (portion applied by this payment) and line items.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT * FROM ledger
+            WHERE id = ? AND customer_id = ? AND entry_type = 'PAYMENT' AND is_deleted = 0
+        ''', (payment_id, customer_id))
+        row = cursor.fetchone()
+        if not row:
+            return None, []
+        payment = dict(row)
+
+        cursor.execute('''
+            SELECT id, amount, created_at, description, notes
+            FROM ledger
+            WHERE customer_id = ? AND entry_type = 'NEW_DEBT'
+              AND is_deleted = 0 AND is_voided = 0
+            ORDER BY created_at ASC, id ASC
+        ''', (customer_id,))
+        debts = []
+        for debt_row in cursor.fetchall():
+            d = dict(debt_row)
+            d['remaining'] = float(d['amount'] or 0)
+            d['amount_paid'] = 0.0
+            debts.append(d)
+
+        cursor.execute('''
+            SELECT id, amount FROM ledger
+            WHERE customer_id = ? AND entry_type = 'PAYMENT' AND is_deleted = 0
+            ORDER BY created_at ASC, id ASC
+        ''', (customer_id,))
+        payments = cursor.fetchall()
+
+        for p in payments:
+            pid = p['id']
+            pay_remaining = float(p['amount'] or 0)
+            for debt in debts:
+                if pay_remaining <= 0:
+                    break
+                if debt['remaining'] <= 0:
+                    continue
+                applied = min(pay_remaining, debt['remaining'])
+                debt['remaining'] = round(debt['remaining'] - applied, 2)
+                if pid == payment_id:
+                    debt['amount_paid'] = round(debt['amount_paid'] + applied, 2)
+                pay_remaining = round(pay_remaining - applied, 2)
+            if pid == payment_id:
+                break
+
+        receipt_entries = []
+        for debt in debts:
+            if debt['amount_paid'] <= 0:
+                continue
+            entry = {
+                'id': debt['id'],
+                'amount': debt['amount'],
+                'created_at': debt['created_at'],
+                'description': debt.get('description'),
+                'notes': debt.get('notes'),
+                'amount_paid': debt['amount_paid'],
+                'entry_type': 'NEW_DEBT',
+                'items': get_ledger_items(debt['id']),
+            }
+            receipt_entries.append(entry)
+
+        return payment, receipt_entries
+
+
+def get_latest_payment_id(customer_id):
+    """Return the most recent PAYMENT ledger id for a customer, or None."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id FROM ledger
+            WHERE customer_id = ? AND entry_type = 'PAYMENT' AND is_deleted = 0
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+        ''', (customer_id,))
+        row = cursor.fetchone()
+        return row['id'] if row else None
+
+
 # ============== REPORTING ==============
 
 def get_total_debt_all():

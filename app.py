@@ -2,7 +2,7 @@ import config_env
 
 config_env.load_dotenv()
 
-from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file, flash, Response
+from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file, flash
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
 import database as db
@@ -16,7 +16,6 @@ from validators import (
 import os
 import io
 import logging
-from name_matcher import match_customers, resolve_customer, normalize_name
 
 logging.basicConfig(level=logging.DEBUG, format='%(name)s %(levelname)s: %(message)s')
 
@@ -171,7 +170,7 @@ def dashboard_stats():
 
 @app.route('/api/dashboard-live')
 def dashboard_live():
-    """Lightweight snapshot for live-updating the home dashboard after chat/actions."""
+    """Lightweight snapshot for live-updating the home dashboard after quick actions."""
     total_debt = db.get_total_debt_all()
     all_customers = db.get_customers_with_debt()
     for customer in all_customers:
@@ -340,7 +339,7 @@ def customer_detail(customer_id):
     # Get unpaid debts for FIFO display
     unpaid_debts = db.get_unpaid_debts(customer_id)
 
-    # Receipt/print: only OPEN/PARTIAL purchases that still have a balance due (exclude $0 / credit-covered)
+    # Print: unpaid-only rows (OPEN/PARTIAL with balance due)
     receipt_ledger = []
     for e in ledger:
         if e.get('is_voided') or e.get('entry_type') != 'NEW_DEBT' or e.get('payment_status') not in ('OPEN', 'PARTIAL'):
@@ -349,11 +348,36 @@ def customer_detail(customer_id):
         if (remaining or 0) <= 0:
             continue
         receipt_ledger.append(e)
+    receipt_ledger.sort(key=lambda x: (x.get('created_at') or '', x.get('id', 0)), reverse=True)
+
+    # Print: full account (all purchases with paid/unpaid/partial status)
+    full_receipt_ledger = []
+    for e in ledger:
+        if e.get('is_voided') or e.get('entry_type') != 'NEW_DEBT':
+            continue
+        status = e.get('payment_status') or 'OPEN'
+        if status == 'PAID':
+            status_label = 'Paid'
+        elif status == 'PARTIAL':
+            status_label = 'Partial'
+        else:
+            status_label = 'Unpaid'
+        remaining = e.get('remaining_amount')
+        if remaining is None:
+            remaining = e.get('amount', 0)
+        amount_due = max(0.0, float(remaining or 0))
+        full_receipt_ledger.append({
+            **e,
+            'status_label': status_label,
+            'amount_due': amount_due,
+        })
+    full_receipt_ledger.sort(key=lambda x: (x.get('created_at') or '', x.get('id', 0)), reverse=True)
 
     return render_template('customer_detail.html',
                          customer=customer,
                          ledger=ledger,
                          receipt_ledger=receipt_ledger,
+                         full_receipt_ledger=full_receipt_ledger,
                          total_debt=total_debt,
                          display_debt=display_debt,
                          total_paid=total_paid,
@@ -564,7 +588,7 @@ def add_payment(customer_id):
         # Validate notes
         notes = validate_string(request.form.get('notes', ''), 'Notes', required=False, max_length=500)
 
-        db.add_payment(customer_id, amount, payment_method=payment_method, notes=notes, user_id=None)
+        payment_id = db.add_payment(customer_id, amount, payment_method=payment_method, notes=notes, user_id=None)
 
         # Check if this is an AJAX request
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.best == 'application/json':
@@ -970,26 +994,58 @@ def export_customer_pdf(customer_id):
     ledger = db.get_customer_ledger(customer_id, include_voided=False)
     total_debt = db.get_customer_balance(customer_id)
 
-    # Printed statement: only OPEN/PARTIAL purchases that still have a balance due (exclude $0 / credit-covered)
-    pdf_ledger = []
-    for entry in ledger:
-        if entry.get('entry_type') != 'NEW_DEBT' or entry.get('payment_status') not in ('OPEN', 'PARTIAL'):
-            continue
-        remaining = entry.get('remaining_amount') if entry.get('remaining_amount') is not None else entry.get('amount', 0)
-        if (remaining or 0) <= 0:
-            continue
-        pdf_ledger.append(entry)
+    total_paid = sum(abs(entry.get('amount', 0)) for entry in ledger if entry.get('entry_type') == 'PAYMENT')
+    total_original = sum(entry.get('amount', 0) for entry in ledger if entry.get('entry_type') == 'NEW_DEBT')
 
-    total_remaining = sum(
-        entry.get('remaining_amount', entry.get('amount', 0)) or entry.get('amount', 0)
-        for entry in pdf_ledger
-    )
+    print_mode = request.args.get('print', 'unpaid')
 
-    pdf_buffer = generate_customer_report(
-        customer, pdf_ledger, [], total_debt,
-        total_debts=total_remaining, total_payments=0,
-        statements_only=True
-    )
+    if print_mode == 'full':
+        full_ledger = []
+        for entry in ledger:
+            if entry.get('entry_type') != 'NEW_DEBT':
+                continue
+            status = entry.get('payment_status') or 'OPEN'
+            if status == 'PAID':
+                status_label = 'Paid'
+            elif status == 'PARTIAL':
+                status_label = 'Partial'
+            else:
+                status_label = 'Unpaid'
+            remaining = entry.get('remaining_amount')
+            if remaining is None:
+                remaining = entry.get('amount', 0)
+            full_ledger.append({
+                **entry,
+                'status_label': status_label,
+                'amount_due': max(0.0, float(remaining or 0)),
+            })
+        full_ledger.sort(key=lambda x: (x.get('created_at') or '', x.get('id', 0)), reverse=True)
+        pdf_buffer = generate_customer_report(
+            customer, full_ledger, [], total_debt,
+            total_debts=total_original, total_payments=total_paid,
+            account_full=True
+        )
+    else:
+        pdf_ledger = []
+        for entry in ledger:
+            if entry.get('entry_type') != 'NEW_DEBT' or entry.get('payment_status') not in ('OPEN', 'PARTIAL'):
+                continue
+            remaining = entry.get('remaining_amount') if entry.get('remaining_amount') is not None else entry.get('amount', 0)
+            if (remaining or 0) <= 0:
+                continue
+            pdf_ledger.append(entry)
+        pdf_ledger.sort(key=lambda x: (x.get('created_at') or '', x.get('id', 0)), reverse=True)
+
+        total_remaining = sum(
+            entry.get('remaining_amount', entry.get('amount', 0)) or entry.get('amount', 0)
+            for entry in pdf_ledger
+        )
+
+        pdf_buffer = generate_customer_report(
+            customer, pdf_ledger, [], total_debt,
+            total_debts=total_remaining, total_payments=0,
+            statements_only=True
+        )
 
     filename = f"report_{customer['name']}_{datetime.now().strftime('%Y%m%d')}.pdf"
     return send_file(pdf_buffer, as_attachment=True, download_name=filename, mimetype='application/pdf')
@@ -1238,151 +1294,6 @@ def create_demo_data():
     except Exception as e:
         flash(f'Error creating demo data: {str(e)}', 'error')
     return redirect(url_for('dashboard'))
-
-
-
-# ---------------------------------------------------------------------------
-# AI Chatbot Routes
-# ---------------------------------------------------------------------------
-
-from chatbot.bot import process_message as chat_process, drop_session, iter_chat_sse_events
-from chatbot.ollama_client import (
-    is_available as ollama_available,
-    ollama_enabled,
-    OLLAMA_BASE_URL as ollama_base_url,
-    OLLAMA_MODEL as ollama_model,
-)
-
-
-@app.route('/chat')
-def chat_page():
-    return render_template('chat.html')
-
-
-@app.route('/chat/api/message', methods=['POST'])
-def chat_message():
-    data = request.get_json()
-    if not data or not data.get('message'):
-        return jsonify({"error": "No message provided"}), 400
-
-    text = data['message']
-    session_id = data.get('session_id')
-    language_hint = data.get('language', 'en')
-    if language_hint not in ('en', 'ar'):
-        language_hint = 'en'
-
-    result = chat_process(text, session_id=session_id, language_hint=language_hint)
-
-    response_data = {
-        "response": result.get('response', ''),
-        "intent": result.get('intent', 'unknown'),
-        "success": result.get('success', False),
-        "session_id": result.get('session_id', session_id),
-        "needs": result.get('needs'),
-        "candidates": result.get('candidates', []),
-        "undo_available": result.get('undo_available', False),
-        "action_preview": result.get('action_preview'),
-    }
-    for _k in ('ledger_changed', 'updated_customer_id', 'updated_customer_name', 'updated_balance'):
-        if _k in result:
-            response_data[_k] = result[_k]
-
-    return jsonify(response_data)
-
-
-
-
-@app.route('/chat/api/message/stream', methods=['POST'])
-def chat_message_stream():
-    """SSE — streams real Ollama tokens for conversational & rephrased action replies."""
-    data = request.get_json()
-    if not data or not data.get('message'):
-        return jsonify({"error": "No message provided"}), 400
-
-    text = data['message']
-    session_id = data.get('session_id')
-    language_hint = data.get('language', 'en')
-    if language_hint not in ('en', 'ar'):
-        language_hint = 'en'
-
-    def generate():
-        import json as _json
-        for event, payload in iter_chat_sse_events(
-            text, session_id=session_id, language_hint=language_hint,
-        ):
-            yield f"event: {event}\ndata: {_json.dumps(payload)}\n\n"
-
-    return Response(
-        generate(),
-        mimetype='text/event-stream',
-        headers={
-            'Cache-Control': 'no-cache',
-            'X-Accel-Buffering': 'no',
-            'Connection': 'keep-alive',
-        },
-    )
-
-
-@app.route('/chat/api/status')
-def chat_status():
-    enabled = ollama_enabled()
-    ol_available = ollama_available() if enabled else False
-    setup_ollama = None
-    if enabled and not ol_available:
-        setup_ollama = (
-            "Install from https://ollama.com then run: ollama pull "
-            + ollama_model
-        )
-    return jsonify({
-        "ollama_enabled": enabled,
-        "ollama_available": ol_available,
-        "ollama_base_url": ollama_base_url,
-        "ollama_model": ollama_model,
-        "setup_instructions": {
-            "ollama": setup_ollama,
-        },
-    })
-
-
-@app.route('/chat/api/undo', methods=['POST'])
-def chat_undo():
-    """Undo the last chatbot write action for this session."""
-    data = request.get_json()
-    session_id = data.get('session_id') if data else None
-    result = chat_process('undo', session_id=session_id)
-    out = {
-        "response": result.get('response', ''),
-        "success": result.get('success', False),
-        "session_id": result.get('session_id', session_id),
-    }
-    for _k in ('ledger_changed', 'updated_customer_id', 'updated_customer_name', 'updated_balance'):
-        if _k in result:
-            out[_k] = result[_k]
-    return jsonify(out)
-
-
-@app.route('/chat/api/history')
-def chat_history():
-    session_id = request.args.get('session_id')
-    if not session_id:
-        return jsonify({"messages": []})
-    messages = db.get_chat_history(session_id, limit=100)
-    return jsonify({
-        "messages": [
-            {"role": m.get("role"), "message": m.get("message"), "created_at": m.get("created_at")}
-            for m in messages
-        ]
-    })
-
-
-@app.route('/chat/api/clear', methods=['POST'])
-def chat_clear():
-    data = request.get_json()
-    session_id = data.get('session_id') if data else None
-    if session_id:
-        db.clear_chat_history(session_id)
-        drop_session(session_id)
-    return jsonify({"success": True})
 
 
 if __name__ == '__main__':

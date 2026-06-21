@@ -3,12 +3,12 @@
 {% block title %}{{ customer.name }} - Pharmacy Thabet{% endblock %}
 
 {% block content %}
-<!-- Print-only receipt: dedicated A5 template (hidden on screen, shown when printing) -->
-<div class="print-receipt-only receipt-document" style="display: none;">
+<!-- Print-only: unpaid items -->
+<div class="print-receipt-only print-receipt-unpaid receipt-document" style="display: none;">
     <div class="receipt-page">
         <header class="receipt-header">
             <div class="receipt-brand">Pharmacy Thabet</div>
-            <div class="receipt-subtitle">Customer Report</div>
+            <div class="receipt-subtitle">Outstanding Statement</div>
         </header>
 
         <section class="receipt-customer">
@@ -68,6 +68,84 @@
     </div>
 </div>
 
+{% if full_receipt_ledger %}
+<!-- Print-only: full account (paid + unpaid) -->
+<div class="print-receipt-only print-receipt-full receipt-document" style="display: none;">
+    <div class="receipt-page">
+        <header class="receipt-header">
+            <div class="receipt-brand">Pharmacy Thabet</div>
+            <div class="receipt-subtitle">Account Statement</div>
+        </header>
+
+        <section class="receipt-customer">
+            <h1 class="receipt-customer-name">{{ customer.name }}</h1>
+            {% if customer.phone %}<p class="receipt-customer-line">Phone: {{ customer.phone }}</p>{% endif %}
+            {% if customer.address %}<p class="receipt-customer-line">Address: {{ customer.address }}</p>{% endif %}
+            {% if customer.email %}<p class="receipt-customer-line">Email: {{ customer.email }}</p>{% endif %}
+        </section>
+
+        <section class="receipt-summary">
+            <table class="receipt-summary-table">
+                <tr>
+                    <td class="receipt-summary-label">Total Purchases</td>
+                    <td class="receipt-summary-value">${{ "%.2f"|format(total_original) }}</td>
+                </tr>
+                <tr>
+                    <td class="receipt-summary-label">Total Paid</td>
+                    <td class="receipt-summary-value receipt-credit">${{ "%.2f"|format(total_paid) }}</td>
+                </tr>
+                <tr>
+                    <td class="receipt-summary-label">Balance Due</td>
+                    <td class="receipt-summary-value {% if total_debt <= 0 %}receipt-credit{% endif %}">${{ "%.2f"|format(display_debt if total_debt > 0 else 0) }}</td>
+                </tr>
+            </table>
+            <p class="receipt-debt-left {% if total_debt <= 0 %}receipt-credit{% endif %}">
+                {% if total_debt < 0 %}Credit Balance: ${{ "%.2f"|format(total_debt|abs) }}{% elif total_debt > 0 %}Balance Due: ${{ "%.2f"|format(total_debt) }}{% else %}Balance Due: $0.00{% endif %}
+            </p>
+        </section>
+
+        <section class="receipt-items">
+            <h2 class="receipt-section-title">All Items</h2>
+            <table class="receipt-table receipt-table-full">
+                <thead>
+                    <tr>
+                        <th class="receipt-th receipt-th-date">Date</th>
+                        <th class="receipt-th receipt-th-items">Items</th>
+                        <th class="receipt-th receipt-th-amount">Total</th>
+                        <th class="receipt-th receipt-th-status">Status</th>
+                        <th class="receipt-th receipt-th-amount">Due</th>
+                        <th class="receipt-th receipt-th-notes">Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in full_receipt_ledger %}
+                    <tr class="receipt-tr">
+                        <td class="receipt-td receipt-td-date">{{ entry.created_at[:10] if entry.created_at else '-' }}</td>
+                        <td class="receipt-td receipt-td-items">
+                            {% set items_list = entry.get('items', []) %}
+                            {% if items_list %}
+                            {% for item in items_list %}{{ item.product_name }}{% if item.quantity > 1 %} (x{{ item.quantity }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+                            {% else %}-{% endif %}
+                        </td>
+                        <td class="receipt-td receipt-td-amount">${{ "%.2f"|format(entry.amount) }}</td>
+                        <td class="receipt-td receipt-td-status">
+                            <span class="receipt-status receipt-status-{{ entry.status_label|lower }}">{{ entry.status_label }}</span>
+                        </td>
+                        <td class="receipt-td receipt-td-amount">${{ "%.2f"|format(entry.amount_due) }}</td>
+                        <td class="receipt-td receipt-td-notes">{{ entry.description or entry.notes or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <footer class="receipt-footer">
+            Generated on <span class="receipt-print-date"></span>
+        </footer>
+    </div>
+</div>
+{% endif %}
+
 <div class="page-header no-print">
     <div style="display: flex; align-items: center; gap: 1rem;">
         {% if customer.profile_image %}
@@ -98,14 +176,16 @@
             <i data-lucide="edit"></i>
             Edit
         </a>
-        <a href="{{ url_for('export_customer_pdf', customer_id=customer.id) }}" class="btn btn-secondary">
-            <i data-lucide="download"></i>
-            Download PDF
-        </a>
-        <button onclick="window.print()" class="btn btn-secondary">
+        <button type="button" onclick="printCustomerReceipt('unpaid')" class="btn btn-secondary">
             <i data-lucide="printer"></i>
-            Print Receipt
+            Print Unpaid
         </button>
+        {% if full_receipt_ledger %}
+        <button type="button" onclick="printCustomerReceipt('full')" class="btn btn-secondary">
+            <i data-lucide="printer"></i>
+            Print Full Account
+        </button>
+        {% endif %}
     </div>
 </div>
 
@@ -1322,9 +1402,17 @@
         }
     }
 
-    // Set print date for receipt
-    document.body.setAttribute('data-print-date', new Date().toLocaleString());
-    var receiptDateEl = document.querySelector('.receipt-print-date');
-    if (receiptDateEl) receiptDateEl.textContent = new Date().toLocaleString();
+    // Print receipt helpers (statement vs payment — separate buttons, no auto-print)
+    window.printCustomerReceipt = function(mode) {
+        document.body.classList.remove('printing-unpaid', 'printing-full');
+        document.body.classList.add(mode === 'full' ? 'printing-full' : 'printing-unpaid');
+        document.querySelectorAll('.receipt-print-date').forEach(function(el) {
+            el.textContent = new Date().toLocaleString();
+        });
+        window.print();
+    };
+    window.addEventListener('afterprint', function() {
+        document.body.classList.remove('printing-unpaid', 'printing-full');
+    });
 </script>
 {% endblock %}

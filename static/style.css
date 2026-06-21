@@ -2782,15 +2782,7 @@ tr.voided td {
     /* Never print notifications, toasts, or flash messages */
     .alert,
     .toast-container,
-    .toast,
-    .undo-toast,
-    #cbUndoToast {
-        display: none !important;
-        visibility: hidden !important;
-    }
-
-    /* Hide the floating AI chatbot widget entirely */
-    #chatBubbleWidget {
+    .toast {
         display: none !important;
         visibility: hidden !important;
     }
@@ -2800,6 +2792,10 @@ tr.voided td {
         display: none !important;
     }
     .print-receipt-only {
+        display: none !important;
+    }
+    body.printing-unpaid .print-receipt-unpaid,
+    body.printing-full .print-receipt-full {
         display: block !important;
         width: 100%;
         max-width: none;
@@ -2928,6 +2924,37 @@ tr.voided td {
         font-size: 0.7rem;
         color: #718096;
         margin: 0.15rem 0;
+    }
+
+    .print-receipt-only .receipt-table-full {
+        font-size: 0.62rem;
+    }
+    .print-receipt-only .receipt-table-full .receipt-th,
+    .print-receipt-only .receipt-table-full .receipt-td {
+        padding: 0.15rem 0.2rem;
+    }
+    .print-receipt-only .receipt-status {
+        display: inline-block;
+        font-size: 0.58rem;
+        font-weight: 700;
+        padding: 0.1rem 0.25rem;
+        border-radius: 0.15rem;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .print-receipt-only .receipt-status-paid {
+        color: #166534;
+        background: #dcfce7;
+    }
+    .print-receipt-only .receipt-status-unpaid {
+        color: #991b1b;
+        background: #fee2e2;
+    }
+    .print-receipt-only .receipt-status-partial {
+        color: #92400e;
+        background: #fef3c7;
     }
 
     /* Receipt table pagination: header repeats, rows stay intact, table spans pages */

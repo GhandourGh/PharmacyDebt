@@ -344,6 +344,35 @@ class TestFIFO:
         assert pytest.approx(5.0, abs=0.01) in remaining
         assert pytest.approx(10.0, abs=0.01) in remaining
 
+    def test_payment_receipt_entries_full_payment(self, sample_customer):
+        cid = sample_customer["id"]
+        db.add_debt(cid, [{"product_name": "Med A", "price": 25, "quantity": 1}])
+        pay_id = db.add_payment(cid, 25.0)
+        payment, entries = db.get_payment_receipt_entries(cid, pay_id)
+        assert payment is not None
+        assert payment["id"] == pay_id
+        assert len(entries) == 1
+        assert entries[0]["amount_paid"] == pytest.approx(25.0, abs=0.01)
+        assert entries[0]["items"][0]["product_name"] == "Med A"
+
+    def test_payment_receipt_entries_partial_across_debts(self, sample_customer):
+        cid = sample_customer["id"]
+        db.add_debt(cid, [{"product_name": "D1", "price": 10, "quantity": 1}])
+        db.add_debt(cid, [{"product_name": "D2", "price": 10, "quantity": 1}])
+        pay_id = db.add_payment(cid, 15.0)
+        payment, entries = db.get_payment_receipt_entries(cid, pay_id)
+        assert payment["id"] == pay_id
+        assert len(entries) == 2
+        paid_by_name = {e["items"][0]["product_name"]: e["amount_paid"] for e in entries}
+        assert paid_by_name["D1"] == pytest.approx(10.0, abs=0.01)
+        assert paid_by_name["D2"] == pytest.approx(5.0, abs=0.01)
+
+    def test_payment_receipt_entries_invalid_payment(self, sample_customer):
+        cid = sample_customer["id"]
+        payment, entries = db.get_payment_receipt_entries(cid, 99999)
+        assert payment is None
+        assert entries == []
+
 
 # ══════════════════════════════════════════════════════════════════
 #  VOID / UNVOID / DELETE

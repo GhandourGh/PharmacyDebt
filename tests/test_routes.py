@@ -188,6 +188,18 @@ class TestPaymentRoutes:
         resp = client.post(f"/customers/{cid}/mark-paid", follow_redirects=True)
         assert resp.status_code == 200
         assert db.get_customer_balance(cid) == pytest.approx(0.0, abs=0.01)
+        assert b"Print Full Account" in resp.data
+        assert b"All Items" in resp.data
+
+    def test_add_payment_shows_full_account_print(self, client, customer_with_debt):
+        cid = customer_with_debt["id"]
+        resp = client.post(f"/customers/{cid}/add-payment", data={
+            "amount": "25.98",
+            "payment_method": "CASH",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"Print Full Account" in resp.data
+        assert b"Print Unpaid" in resp.data
 
     def test_mark_paid_zero_balance(self, client, sample_customer):
         cid = sample_customer["id"]

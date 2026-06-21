@@ -1,6 +1,6 @@
-# Pharmacy Debt System — Quick guide (Windows, Git, Ollama, tests)
+# Pharmacy Debt System — Quick guide (Windows, Git, tests)
 
-Short reference for syncing code safely, running tests, and using Ollama with this project.
+Short reference for syncing code safely and running tests with this project.
 
 ---
 
@@ -9,7 +9,7 @@ Short reference for syncing code safely, running tests, and using Ollama with th
 Git **does not** replace these local files when you pull (they are in `.gitignore`):
 
 - `pharmacy.db` — all customer and ledger data  
-- `.env` — your secrets and Ollama settings  
+- `.env` — your secrets and local settings  
 - `static/uploads/` — uploaded images  
 - `.venv/` — Python virtual environment  
 
@@ -73,61 +73,13 @@ Tests use a **temporary** database — your real `pharmacy.db` is not touched.
 
 2. Edit `.env` as needed. Variables already set in the shell are **not** overridden by the app loader.
 
-3. Important keys for the AI assistant (see `.env.example` for full list):
+3. Optional keys:
 
-   - **`OLLAMA_ENABLED`** — default **`false`**: no Ollama calls, no “LLM not running” banners; chat uses built-in rules. Set to **`true`** after you install Ollama and pull a model.  
-   - `OLLAMA_BASE_URL` — default `http://127.0.0.1:11434`  
-   - `OLLAMA_MODEL` — default `qwen3.5:4b`  
-   - `SECRET_KEY` — optional but recommended for production  
+   - `SECRET_KEY` — recommended for production  
 
 ---
 
-## 4. Ollama on Windows
-
-### Install
-
-1. Download **Ollama for Windows** from [https://ollama.com/download](https://ollama.com/download).  
-2. Run the installer. Restart the terminal (or the PC) if `ollama` is not recognized.
-
-### Model (matches this repo’s defaults)
-
-```powershell
-ollama pull qwen3.5:4b
-ollama list
-```
-
-### Check the API
-
-```powershell
-curl http://127.0.0.1:11434/api/tags
-```
-
-### Match the pharmacy app
-
-Ensure `.env` contains:
-
-```env
-OLLAMA_ENABLED=true
-OLLAMA_BASE_URL=http://127.0.0.1:11434
-OLLAMA_MODEL=qwen3.5:4b
-```
-
-Restart `python app.py` after editing `.env`. Leave `OLLAMA_ENABLED=false` (or omit it) until Ollama is installed if you want a quiet, rule-only chat.
-
-### Auto-run
-
-Usually the Ollama Windows app **starts with Windows** and keeps serving on `127.0.0.1:11434`. Check the **system tray** for the Ollama icon. If it does not start after boot:
-
-- Open **Ollama** from the Start menu once.  
-- Enable it under **Settings → Apps → Startup** (or **Task Manager → Startup apps**).
-
-You typically do **not** need to run `ollama serve` manually when the desktop app is running.
-
-If Ollama is off, the app still runs; the chatbot falls back to **rule-based** mode (no local LLM).
-
----
-
-## 5. Fresh clone on a new machine
+## 4. Fresh clone on a new machine
 
 ```powershell
 git clone https://github.com/GhandourGh/PharmacyDebt.git pharmacy-debt-system
@@ -143,7 +95,7 @@ Restore your **backups** of `pharmacy.db`, `.env`, and `static\uploads` if you a
 
 ---
 
-## 6. Checklist
+## 5. Checklist
 
 | Task | Command / note |
 |------|----------------|
@@ -152,8 +104,7 @@ Restore your **backups** of `pharmacy.db`, `.env`, and `static\uploads` if you a
 | Dependencies | `pip install -r requirements.txt` |
 | Tests | `python run_tests.py` |
 | Run app | `python app.py` |
-| Ollama | Install app, `ollama pull qwen3.5:4b`, `.env` URLs/model |
 
 ---
 
-*Last updated for this repository’s layout (`pharmacy.db` in project root, Flask `app.py`, chat under `/chat` and the floating widget in `base.html`).*
+*Last updated for this repository’s layout (`pharmacy.db` in project root, Flask `app.py`, default port 5001).*
