@@ -591,7 +591,7 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
 
 
 def generate_all_customers_debt_report(customers_data, total_debt):
-    """Generate a PDF report of all customers with debts, their items, and totals"""
+    """PDF: all customers who owe money — summary table only (name, phone, amount)."""
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, **_PDF_PAGE_MARGINS)
 
@@ -613,94 +613,75 @@ def generate_all_customers_debt_report(customers_data, total_debt):
         spaceBefore=0,
         textColor=colors.grey
     )
-    customer_name_style = ParagraphStyle(
-        'CustomerName',
-        parent=styles['Heading2'],
-        fontSize=14,
-        spaceBefore=15,
-        spaceAfter=8,
-        textColor=colors.Color(0.17, 0.32, 0.51)
-    )
     grand_total_style = ParagraphStyle(
         'GrandTotal',
         parent=styles['Heading1'],
-        fontSize=18,
+        fontSize=16,
         alignment=TA_RIGHT,
-        spaceBefore=30,
-        spaceAfter=20,
+        spaceBefore=16,
+        spaceAfter=12,
         textColor=colors.Color(0.8, 0.1, 0.1)
     )
 
     elements = []
-
-    # Title
     elements.append(Paragraph("Pharmacy Thabet", title_style))
-    elements.append(Paragraph("All Customers Debt Report", subtitle_style))
+    elements.append(Paragraph("All Customers — Amounts Owed", subtitle_style))
     elements.append(Paragraph(f"Generated on {format_datetime_12h()}", subtitle_style))
-    elements.append(Spacer(1, 10))
+    elements.append(Spacer(1, 12))
 
-    # Process each customer (only customers with debt > 0 are included)
-    for customer in customers_data:
-        # Customer name and debt
-        elements.append(Paragraph(f"<b>{customer['name']}</b>", customer_name_style))
-        elements.append(Paragraph(f"Amount Owed: <b>${customer['debt']:.2f}</b>", styles['Normal']))
+    # Deduplicate by customer id (keep first / highest debt order from caller)
+    seen_ids = set()
+    unique_customers = []
+    for customer in customers_data or []:
+        cid = customer.get('id')
+        if cid is None or cid in seen_ids:
+            continue
+        seen_ids.add(cid)
+        unique_customers.append(customer)
+
+    if unique_customers:
+        summary_data = [['#', 'Customer', 'Phone', 'Amount Owed']]
+        row_total = 0.0
+        for idx, customer in enumerate(unique_customers, start=1):
+            debt = float(customer.get('debt') or 0)
+            row_total += debt
+            name = customer.get('name') or 'Unknown'
+            phone = customer.get('phone') or '—'
+            summary_data.append([
+                str(idx),
+                Paragraph(name, styles['Normal']),
+                phone,
+                f"${debt:.2f}",
+            ])
+
+        summary_table = Table(summary_data, colWidths=[1.0 * cm, 7.5 * cm, 3.5 * cm, 3.5 * cm])
+        summary_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.17, 0.32, 0.51)),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+            ('ALIGN', (3, 0), (3, -1), 'RIGHT'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.Color(0.9, 0.9, 0.9)),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.Color(0.98, 0.98, 0.98)]),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(summary_table)
         elements.append(Spacer(1, 8))
-        
-        # Compact items list for this customer
-        if customer.get('items') and len(customer['items']) > 0:
-            # Group items by product name and sum quantities
-            from collections import defaultdict
-            product_totals = defaultdict(lambda: {'quantity': 0, 'total': 0})
-            
-            for item in customer['items']:
-                product_name = item.get('product_name', 'Unknown')
-                quantity = item.get('quantity', 1)
-                price = item.get('price', 0)
-                item_total = price * quantity
-                
-                product_totals[product_name]['quantity'] += quantity
-                product_totals[product_name]['total'] += item_total
-            
-            # Build compact product list
-            product_list = []
-            customer_total = 0
-            for product_name, data in sorted(product_totals.items()):
-                qty = data['quantity']
-                total = data['total']
-                customer_total += total
-                
-                if qty > 1:
-                    product_list.append(f"{product_name} (x{qty})")
-                else:
-                    product_list.append(product_name)
-            
-            # Display products as comma-separated list
-            products_text = ", ".join(product_list)
-            elements.append(Paragraph(f"<b>Products:</b> {products_text}", styles['Normal']))
-        else:
-            elements.append(Paragraph("No items recorded.", styles['Normal']))
-        
-        elements.append(Spacer(1, 12))
+        elements.append(Paragraph(
+            f"<b>Customers owing: {len(unique_customers)}</b> &nbsp;|&nbsp; "
+            f"<b>Total from list: ${row_total:.2f}</b>",
+            ParagraphStyle('Meta', parent=styles['Normal'], fontSize=10, alignment=TA_RIGHT)
+        ))
+    else:
+        elements.append(Paragraph("No customers with outstanding balances.", styles['Normal']))
 
-    # Summary before Grand Total
-    elements.append(Spacer(1, 20))
-    summary_style = ParagraphStyle(
-        'Summary',
-        parent=styles['Normal'],
-        fontSize=12,
-        alignment=TA_RIGHT,
-        spaceAfter=10,
-        textColor=colors.Color(0.17, 0.32, 0.51)
-    )
-    total_customers = len(customers_data) if customers_data else 0
-    elements.append(Paragraph(f"Total Customers with Debts: <b>{total_customers}</b>", summary_style))
-    
-    # Grand Total
-    elements.append(Spacer(1, 10))
-    elements.append(Paragraph(f"<b>GRAND TOTAL: ${total_debt:.2f}</b>", grand_total_style))
+    elements.append(Spacer(1, 12))
+    elements.append(Paragraph(f"<b>GRAND TOTAL OWED: ${total_debt:.2f}</b>", grand_total_style))
 
-    # Footer
-    elements.append(Spacer(1, 40))
     footer_style = ParagraphStyle(
         'Footer',
         parent=styles['Normal'],
@@ -708,6 +689,7 @@ def generate_all_customers_debt_report(customers_data, total_debt):
         textColor=colors.grey,
         alignment=TA_CENTER
     )
+    elements.append(Spacer(1, 20))
     elements.append(Paragraph(f"Report generated on {format_datetime_12h()}", footer_style))
 
     doc.build(elements)

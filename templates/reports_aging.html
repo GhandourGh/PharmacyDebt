@@ -15,10 +15,14 @@
 </div>
 
 <!-- Report Type Navigation -->
-<div class="report-nav" style="margin-bottom: 1.5rem; display: flex; gap: 0.5rem;">
+<div class="report-nav" style="margin-bottom: 1.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
     <a href="{{ url_for('reports', type='transactions') }}" class="btn btn-secondary">
         <i data-lucide="list"></i>
         Transactions
+    </a>
+    <a href="{{ url_for('reports', type='balances') }}" class="btn btn-secondary">
+        <i data-lucide="users"></i>
+        All Owed
     </a>
     <a href="{{ url_for('reports', type='aging') }}" class="btn btn-primary">
         <i data-lucide="clock"></i>

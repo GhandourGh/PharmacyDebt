@@ -375,6 +375,12 @@ class TestReportRoutes:
         resp = client.get("/reports?type=daily")
         assert resp.status_code == 200
 
+    def test_reports_balances(self, client, customer_with_debt):
+        resp = client.get("/reports?type=balances")
+        assert resp.status_code == 200
+        assert b"All Customers" in resp.data or b"Amounts Owed" in resp.data
+        assert b"Grand Total Owed" in resp.data
+
     def test_reports_with_date_range(self, client):
         resp = client.get("/reports?start_date=2025-01-01&end_date=2025-12-31")
         assert resp.status_code == 200

@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}All Customers Owed - Pharmacy Thabet{% endblock %}
+
+{% block content %}
+<div class="page-header no-print">
+    <h1 class="page-title">
+        <i data-lucide="users" class="icon-debt"></i>
+        All Customers — Amounts Owed
+    </h1>
+    <div class="btn-group">
+        <a href="{{ url_for('download_all_debts_pdf') }}" class="btn btn-secondary">
+            <i data-lucide="download"></i>
+            Download PDF
+        </a>
+        <button type="button" onclick="window.print()" class="btn btn-secondary">
+            <i data-lucide="printer"></i>
+            Print Report
+        </button>
+    </div>
+</div>
+
+<div class="report-nav no-print" style="margin-bottom: 1.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+    <a href="{{ url_for('reports', type='transactions') }}" class="btn btn-secondary">
+        <i data-lucide="list"></i>
+        Transactions
+    </a>
+    <a href="{{ url_for('reports', type='balances') }}" class="btn btn-primary">
+        <i data-lucide="users"></i>
+        All Owed
+    </a>
+    <a href="{{ url_for('reports', type='aging') }}" class="btn btn-secondary">
+        <i data-lucide="clock"></i>
+        Aging
+    </a>
+    <a href="{{ url_for('reports', type='daily') }}" class="btn btn-secondary">
+        <i data-lucide="calendar"></i>
+        Daily
+    </a>
+    <a href="{{ url_for('reports', type='overdue') }}" class="btn btn-secondary">
+        <i data-lucide="alert-triangle"></i>
+        Overdue
+    </a>
+</div>
+
+<div class="card card-info balances-report-card">
+    <div class="card-header">
+        <h2 class="card-title">
+            <i data-lucide="file-text"></i>
+            Summary
+        </h2>
+        <span class="badge badge-debt">
+            {{ customers_owing|length }} customer{% if customers_owing|length != 1 %}s{% endif %} owing
+        </span>
+    </div>
+
+    <p style="color: #64748b; font-size: 0.875rem; margin: 0 0 1rem 0;">
+        One line per customer account. Same name twice means two separate customers in the system — each amount is shown only once.
+    </p>
+
+    {% if customers_owing %}
+    <div class="table-container">
+        <table class="balances-report-table">
+            <thead>
+                <tr>
+                    <th style="width: 3rem;">#</th>
+                    <th>Customer</th>
+                    <th>Phone</th>
+                    <th style="text-align: right;">Amount Owed</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in customers_owing %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>
+                        <a href="{{ url_for('customer_detail', customer_id=customer.id) }}" class="no-print">
+                            {{ customer.name }}
+                        </a>
+                        <span class="print-only">{{ customer.name }}</span>
+                    </td>
+                    <td>{{ customer.phone or '—' }}</td>
+                    <td style="text-align: right; font-weight: 700; color: #dc2626;">
+                        ${{ "%.2f"|format(customer.debt) }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="3" style="text-align: right; font-weight: 700; padding-top: 1rem;">Grand Total Owed</td>
+                    <td style="text-align: right; font-weight: 700; font-size: 1.125rem; color: #dc2626; padding-top: 1rem;">
+                        ${{ "%.2f"|format(total_owed) }}
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i data-lucide="check-circle" style="width: 48px; height: 48px; color: #22c55e; opacity: 0.8;"></i>
+        <p>No customers currently owe money.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    lucide.createIcons();
+</script>
+<style>
+    .print-only { display: none; }
+    @media print {
+        .no-print { display: none !important; }
+        .print-only { display: inline !important; }
+        .balances-report-card {
+            box-shadow: none !important;
+            border: none !important;
+        }
+        .balances-report-table { font-size: 11pt; }
+        .balances-report-table th {
+            background: #2c5282 !important;
+            color: #fff !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+    }
+</style>
+{% endblock %}

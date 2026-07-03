@@ -1155,6 +1155,50 @@ def get_customers_with_debt_and_items():
         
         return customers
 
+def get_customers_owing_report():
+    """Active customers with balance > 0 — exactly one row per customer id, highest debt first."""
+    rows = get_customers_with_debt()
+    by_id = {}
+    for row in rows:
+        cid = row['id']
+        if cid in by_id:
+            continue
+        debt = float(row.get('debt') or 0)
+        if debt > 0:
+            by_id[cid] = row
+    result = list(by_id.values())
+    result.sort(key=lambda x: (-float(x.get('debt') or 0), (x.get('name') or '').casefold()))
+    return result
+
+
+def get_customers_owing_report_with_items():
+    """Owing customers (one per id) with unpaid line items for PDF detail sections."""
+    customers = get_customers_owing_report()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        for customer in customers:
+            cursor.execute('''
+                SELECT li.product_name, li.quantity, li.price
+                FROM ledger l
+                JOIN ledger_items li ON l.id = li.ledger_id
+                WHERE l.customer_id = ?
+                AND l.entry_type = 'NEW_DEBT'
+                AND l.is_voided = 0
+                AND l.is_deleted = 0
+                AND l.payment_status IN ('OPEN', 'PARTIAL')
+                AND COALESCE(l.remaining_amount, l.amount, 0) > 0
+                ORDER BY l.created_at ASC
+            ''', (customer['id'],))
+            customer['items'] = [
+                {
+                    'product_name': row['product_name'],
+                    'quantity': row['quantity'],
+                    'price': row['price'],
+                }
+                for row in cursor.fetchall()
+            ]
+    return customers
+
 def get_recent_active_customers(limit=4):
     """Get the most recent customers with activity, always return exactly limit customers"""
     with get_db() as conn:

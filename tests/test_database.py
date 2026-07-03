@@ -468,6 +468,19 @@ class TestReporting:
         assert len(found) == 1
         assert found[0]["debt"] == pytest.approx(25.98, abs=0.01)
 
+    def test_customers_owing_report_one_per_customer(self, sample_customer):
+        cid = sample_customer["id"]
+        db.add_debt(cid, [{"product_name": "A", "price": 30, "quantity": 1}])
+        owing = db.get_customers_owing_report()
+        assert [c["id"] for c in owing].count(cid) == 1
+
+    def test_customers_owing_excludes_paid(self, sample_customer):
+        cid = sample_customer["id"]
+        db.add_debt(cid, [{"product_name": "A", "price": 25, "quantity": 1}])
+        db.add_payment(cid, 25.0)
+        owing = db.get_customers_owing_report()
+        assert all(c["id"] != cid for c in owing)
+
     def test_transactions_by_date(self, customer_with_debt):
         from datetime import datetime
         today = datetime.now().strftime("%Y-%m-%d")

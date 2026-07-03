@@ -841,6 +841,13 @@ def reports():
             return render_template('reports_daily.html', 
                                  daily_stats=daily_stats,
                                  selected_date=selected_date)
+
+        elif report_type == 'balances':
+            customers_owing = db.get_customers_owing_report()
+            total_owed = sum(float(c.get('debt') or 0) for c in customers_owing)
+            return render_template('reports_balances.html',
+                                 customers_owing=customers_owing,
+                                 total_owed=total_owed)
         
         else:  # Default: transactions report
             # Date range with defaults
@@ -1054,7 +1061,7 @@ def export_customer_pdf(customer_id):
 def download_all_debts_pdf():
     """Download PDF report of all customers with debts"""
     try:
-        customers = db.get_customers_with_debt_and_items()
+        customers = db.get_customers_owing_report()
         total_debt = db.get_total_debt_all()
         
         if not customers:
