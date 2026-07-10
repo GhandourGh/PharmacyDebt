@@ -1004,6 +1004,12 @@ def export_customer_pdf(customer_id):
     total_paid = sum(abs(entry.get('amount', 0)) for entry in ledger if entry.get('entry_type') == 'PAYMENT')
     total_original = sum(entry.get('amount', 0) for entry in ledger if entry.get('entry_type') == 'NEW_DEBT')
 
+    # Every payment the customer has made, oldest first, for the Payment History section.
+    payment_history = sorted(
+        (entry for entry in ledger if entry.get('entry_type') == 'PAYMENT'),
+        key=lambda x: (x.get('created_at') or '', x.get('id', 0))
+    )
+
     print_mode = request.args.get('print', 'unpaid')
 
     if print_mode == 'full':
@@ -1028,7 +1034,7 @@ def export_customer_pdf(customer_id):
             })
         full_ledger.sort(key=lambda x: (x.get('created_at') or '', x.get('id', 0)), reverse=True)
         pdf_buffer = generate_customer_report(
-            customer, full_ledger, [], total_debt,
+            customer, full_ledger, payment_history, total_debt,
             total_debts=total_original, total_payments=total_paid,
             account_full=True
         )
@@ -1049,7 +1055,7 @@ def export_customer_pdf(customer_id):
         )
 
         pdf_buffer = generate_customer_report(
-            customer, pdf_ledger, [], total_debt,
+            customer, pdf_ledger, payment_history, total_debt,
             total_debts=total_remaining, total_payments=0,
             statements_only=True
         )

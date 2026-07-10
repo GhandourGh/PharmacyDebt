@@ -23,6 +23,20 @@ def format_datetime_12h(dt=None):
     return dt.strftime('%Y-%m-%d %I:%M %p')
 
 
+def _format_date_dmy(value):
+    """Format a stored date/datetime string as DD/MM/YYYY (e.g., '01/01/2026').
+
+    Accepts values like '2026-01-01' or '2026-01-01 12:52:00'. Falls back to the
+    original (trimmed) value if it can't be parsed."""
+    if not value:
+        return '-'
+    date_part = str(value)[:10]
+    try:
+        return datetime.strptime(date_part, '%Y-%m-%d').strftime('%d/%m/%Y')
+    except ValueError:
+        return date_part
+
+
 def generate_debt_report(transactions, total_debt, start_date, end_date, customer_name=None):
     """Generate a PDF report of debt transactions"""
     buffer = BytesIO()
@@ -573,6 +587,43 @@ def generate_customer_report(customer, ledger, payments, total_debt, total_debts
         else:
             msg = "No transaction history."
         elements.append(Paragraph(msg, styles['Normal']))
+
+    # Payment History – explicit list of every payment the customer has made
+    if payments:
+        elements.append(Paragraph("Payment History", section_style))
+        payment_data = [['Payment Date', 'Amount Paid']]
+        total_paid_listed = 0.0
+        for payment in payments:
+            amount = abs(float(payment.get('amount', 0) or 0))
+            total_paid_listed += amount
+            payment_data.append([
+                _format_date_dmy(payment.get('created_at') or payment.get('date')),
+                Paragraph(f"<font color='green'>${amount:.2f}</font>", styles['Normal']),
+            ])
+        payment_data.append([
+            Paragraph("<b>Total Paid</b>", styles['Normal']),
+            Paragraph(f"<b><font color='green'>${total_paid_listed:.2f}</font></b>", styles['Normal']),
+        ])
+
+        payment_table = Table(payment_data, colWidths=[6 * cm, 6 * cm])
+        payment_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.17, 0.32, 0.51)),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.Color(0.9, 0.9, 0.9)),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.Color(0.98, 0.98, 0.98)]),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.Color(0.95, 0.95, 0.95)),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('LEFTPADDING', (0, 0), (-1, -1), 12),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+        ]))
+        elements.append(payment_table)
 
     # Footer
     elements.append(Spacer(1, 30))
