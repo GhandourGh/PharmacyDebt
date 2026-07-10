@@ -62,6 +62,32 @@
             {% endif %}
         </section>
 
+        {% if receipt_payments %}
+        <section class="receipt-items">
+            <h2 class="receipt-section-title">Payment History</h2>
+            <table class="receipt-table">
+                <thead>
+                    <tr>
+                        <th class="receipt-th receipt-th-date">Payment Date</th>
+                        <th class="receipt-th receipt-th-amount">Amount Paid</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for payment in receipt_payments %}
+                    <tr class="receipt-tr">
+                        <td class="receipt-td receipt-td-date">{{ payment.created_at[:10] if payment.created_at else '-' }}</td>
+                        <td class="receipt-td receipt-td-amount receipt-credit">${{ "%.2f"|format(payment.amount|abs) }}</td>
+                    </tr>
+                    {% endfor %}
+                    <tr class="receipt-tr">
+                        <td class="receipt-td receipt-td-date"><strong>Total Paid</strong></td>
+                        <td class="receipt-td receipt-td-amount receipt-credit"><strong>${{ "%.2f"|format(receipt_payments_total) }}</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        {% endif %}
+
         <footer class="receipt-footer">
             Generated on <span class="receipt-print-date"></span>
         </footer>
@@ -138,6 +164,32 @@
                 </tbody>
             </table>
         </section>
+
+        {% if receipt_payments %}
+        <section class="receipt-items">
+            <h2 class="receipt-section-title">Payment History</h2>
+            <table class="receipt-table">
+                <thead>
+                    <tr>
+                        <th class="receipt-th receipt-th-date">Payment Date</th>
+                        <th class="receipt-th receipt-th-amount">Amount Paid</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for payment in receipt_payments %}
+                    <tr class="receipt-tr">
+                        <td class="receipt-td receipt-td-date">{{ payment.created_at[:10] if payment.created_at else '-' }}</td>
+                        <td class="receipt-td receipt-td-amount receipt-credit">${{ "%.2f"|format(payment.amount|abs) }}</td>
+                    </tr>
+                    {% endfor %}
+                    <tr class="receipt-tr">
+                        <td class="receipt-td receipt-td-date"><strong>Total Paid</strong></td>
+                        <td class="receipt-td receipt-td-amount receipt-credit"><strong>${{ "%.2f"|format(receipt_payments_total) }}</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        {% endif %}
 
         <footer class="receipt-footer">
             Generated on <span class="receipt-print-date"></span>

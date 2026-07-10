@@ -373,11 +373,21 @@ def customer_detail(customer_id):
         })
     full_receipt_ledger.sort(key=lambda x: (x.get('created_at') or '', x.get('id', 0)), reverse=True)
 
+    # Print: payment history — every real (non-voided) payment, oldest first
+    receipt_payments = [
+        e for e in ledger
+        if e.get('entry_type') == 'PAYMENT' and not e.get('is_voided')
+    ]
+    receipt_payments.sort(key=lambda x: (x.get('created_at') or '', x.get('id', 0)))
+    receipt_payments_total = sum(abs(e.get('amount', 0) or 0) for e in receipt_payments)
+
     return render_template('customer_detail.html',
                          customer=customer,
                          ledger=ledger,
                          receipt_ledger=receipt_ledger,
                          full_receipt_ledger=full_receipt_ledger,
+                         receipt_payments=receipt_payments,
+                         receipt_payments_total=receipt_payments_total,
                          total_debt=total_debt,
                          display_debt=display_debt,
                          total_paid=total_paid,
