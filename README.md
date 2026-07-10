@@ -56,8 +56,48 @@ pharmacy-debt-system/
 ├── requirements.txt       # Python dependencies
 ├── templates/            # HTML templates
 ├── static/               # CSS, JS, and uploaded files
+│   ├── css/tailwind.css  # Compiled Tailwind output (committed, served locally)
+│   ├── style.css         # App stylesheet
+│   └── vendor/           # Vendored, version-pinned libraries (Lucide, Chart.js)
+├── tailwind.config.js    # Tailwind build config (scans templates)
+├── tailwind.input.css    # Tailwind entry file (@tailwind directives)
 └── pharmacy.db           # SQLite database (created automatically)
 ```
+
+## Offline / Frontend Assets
+
+The UI runs **fully offline** — no internet or CDN is required. All CSS/JS is served
+from `static/` via `url_for('static', ...)`:
+
+| Asset | Location | Version |
+| --- | --- | --- |
+| Tailwind CSS (compiled) | `static/css/tailwind.css` | built with Tailwind `3.4.17` (the version `cdn.tailwindcss.com` served) |
+| Lucide icons | `static/vendor/lucide/lucide.min.js` | `0.460.0` (pinned) |
+| Chart.js | `static/vendor/chartjs/chart.umd.min.js` | `4.4.6` (pinned) |
+| App stylesheet | `static/style.css` | — |
+
+These files are **committed to git**, so a Windows machine works offline immediately
+after `git pull` — no `npm install` or build step needed to run the app.
+
+> **Note:** Preline was previously loaded from a CDN but is **not used** anywhere in the
+> templates (no `hs-*` classes or `data-hs-*` attributes), and its CDN stylesheet URL was
+> already returning `404`. It has been removed rather than vendored as dead code.
+
+### Rebuilding Tailwind
+
+Tailwind is precompiled to `static/css/tailwind.css` containing only the utility classes
+found in the templates. You only need to rebuild it if you **add or change Tailwind utility
+classes** in `templates/` (or in JS that toggles classes). Requires Node.js:
+
+```bash
+npm run build:css
+# equivalent to:
+# npx tailwindcss@3.4.17 -c tailwind.config.js -i tailwind.input.css -o static/css/tailwind.css --minify
+```
+
+Then commit the regenerated `static/css/tailwind.css`. The build scans the globs in
+`tailwind.config.js` (`templates/**/*.html`, `static/**/*.js`); `hidden` and `flex` are
+safelisted because the menu JS toggles them at runtime.
 
 ## Features Overview
 

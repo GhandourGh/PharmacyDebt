@@ -1,5 +1,3 @@
-<link href="https://cdn.jsdelivr.net/npm/preline@2/dist/preline.min.css" rel="stylesheet">
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -17,10 +15,12 @@
             }
         })();
     </script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Local Tailwind build (offline). Regenerate with: npm run build:css  (see README) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Vendored, version-pinned libraries served locally for offline use -->
+    <script src="{{ url_for('static', filename='vendor/lucide/lucide.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
     <style>
         .nav-wrapper-new {
             padding: 1rem 0;
@@ -481,7 +481,6 @@
         };
     </script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
-    <script src="https://cdn.jsdelivr.net/npm/preline@2/dist/preline.min.js"></script>
     {% block scripts %}{% endblock %}
 
     <!-- Restore Backup Modal -->

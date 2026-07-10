@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "build:css": "npx --yes tailwindcss@3.4.17 -c tailwind.config.js -i tailwind.input.css -o static/css/tailwind.css --minify"
+  },
   "dependencies": {
     "@heroui/card": "^2.2.27",
     "@heroui/react": "^2.8.7",
