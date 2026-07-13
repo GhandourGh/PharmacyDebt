@@ -1428,6 +1428,36 @@ tr:hover td {
     background: rgba(0,0,0,0.1);
 }
 
+.alert-action-form {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+}
+
+.alert-action-form + .alert-close {
+    margin-left: 0;
+}
+
+.alert-action-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: 6px;
+    border: 1px solid currentColor;
+    background: rgba(255,255,255,0.65);
+    color: inherit;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.alert-action-button:hover {
+    background: rgba(255,255,255,0.95);
+    transform: translateY(-1px);
+}
+
 /* Voided Entries */
 tr.voided {
     opacity: 0.5;

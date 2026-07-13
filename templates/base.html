@@ -228,9 +228,20 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                <div class="alert alert-{{ category }}">
-                    <i data-lucide="{% if category == 'success' %}check-circle{% elif category == 'error' %}alert-circle{% elif category == 'warning' %}alert-triangle{% else %}info{% endif %}" style="width: 18px; height: 18px;"></i>
+                <div class="alert alert-{{ 'success' if category == 'undo_delete' else category }}">
+                    <i data-lucide="{% if category in ['success', 'undo_delete'] %}check-circle{% elif category == 'error' %}alert-circle{% elif category == 'warning' %}alert-triangle{% else %}info{% endif %}" style="width: 18px; height: 18px;"></i>
+                    {% if category == 'undo_delete' and message is mapping %}
+                    <span>{{ message.message }}</span>
+                    <form method="POST" action="{{ url_for('restore_deleted_entry', ledger_id=message.ledger_id) }}" class="alert-action-form">
+                        <input type="hidden" name="customer_id" value="{{ message.customer_id }}">
+                        <button type="submit" class="alert-action-button">
+                            <i data-lucide="rotate-ccw" style="width: 14px; height: 14px;"></i>
+                            Undo
+                        </button>
+                    </form>
+                    {% else %}
                     {{ message }}
+                    {% endif %}
                     <button class="alert-close" onclick="this.parentElement.remove()">
                         <i data-lucide="x" style="width: 14px; height: 14px;"></i>
                     </button>

@@ -755,10 +755,32 @@ def unvoid_entry(ledger_id):
 def delete_entry(ledger_id):
     customer_id = request.form.get('customer_id')
     try:
-        db.delete_ledger_entry(ledger_id)
-        flash('Entry permanently deleted.', 'success')
+        deleted = db.delete_ledger_entry(ledger_id)
+        if deleted:
+            flash({
+                'message': 'Entry deleted and balance recalculated.',
+                'ledger_id': ledger_id,
+                'customer_id': customer_id,
+            }, 'undo_delete')
+        else:
+            flash('Entry was not found or was already deleted.', 'warning')
     except Exception as e:
         flash(f'Error deleting entry: {str(e)}', 'error')
+    if customer_id:
+        return redirect(url_for('customer_detail', customer_id=customer_id))
+    return redirect(url_for('dashboard'))
+
+@app.route('/ledger/<int:ledger_id>/restore-deleted', methods=['POST'])
+def restore_deleted_entry(ledger_id):
+    customer_id = request.form.get('customer_id')
+    try:
+        restored = db.restore_deleted_ledger_entry(ledger_id)
+        if restored:
+            flash('Entry restored and balance recalculated.', 'success')
+        else:
+            flash('Entry was not found or is already restored.', 'warning')
+    except Exception as e:
+        flash(f'Error restoring entry: {str(e)}', 'error')
     if customer_id:
         return redirect(url_for('customer_detail', customer_id=customer_id))
     return redirect(url_for('dashboard'))

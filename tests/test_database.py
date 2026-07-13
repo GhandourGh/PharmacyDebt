@@ -426,6 +426,20 @@ class TestVoidOps:
         visible = db.get_customer_ledger(cid, include_voided=True)
         assert all(e["id"] != lid for e in visible)
 
+    def test_restore_deleted_ledger_entry(self, customer_with_debt):
+        cid = customer_with_debt["id"]
+        ledger = db.get_customer_ledger(cid, include_voided=True)
+        lid = ledger[0]["id"]
+        original_balance = db.get_customer_balance(cid)
+
+        assert db.delete_ledger_entry(lid) is True
+        assert db.get_customer_balance(cid) == pytest.approx(0.0)
+
+        assert db.restore_deleted_ledger_entry(lid) is True
+        restored = db.get_customer_ledger(cid, include_voided=True)
+        assert any(e["id"] == lid for e in restored)
+        assert db.get_customer_balance(cid) == pytest.approx(original_balance)
+
 
 # ══════════════════════════════════════════════════════════════════
 #  REPORTING

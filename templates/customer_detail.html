@@ -449,26 +449,11 @@
                     </td>
                     <td>
                         <div style="display: flex; gap: 0.5rem; align-items: center;">
-                            {% if entry.is_voided %}
-                            <form method="POST" action="{{ url_for('unvoid_entry', ledger_id=entry.id) }}" style="display: inline;">
-                                <input type="hidden" name="customer_id" value="{{ customer.id }}">
-                                <button type="submit" class="btn-icon-toggle" title="Show entry (currently hidden)" style="background: #e2e8f0; color: #64748b;">
-                                    <i data-lucide="eye-off" style="width: 14px; height: 14px;"></i>
-                                </button>
-                            </form>
-                            {% else %}
-                            <form method="POST" action="{{ url_for('void_entry', ledger_id=entry.id) }}" style="display: inline;">
-                                <input type="hidden" name="customer_id" value="{{ customer.id }}">
-                                <button type="submit" class="btn-icon-toggle" title="Hide entry" style="background: transparent; color: #64748b;">
-                                    <i data-lucide="eye" style="width: 14px; height: 14px;"></i>
-                                </button>
-                            </form>
-                            {% endif %}
                             <form method="POST" action="{{ url_for('delete_entry', ledger_id=entry.id) }}" style="display: inline;" class="delete-entry-form"
                                   data-entry-type="{{ entry.entry_type }}" data-entry-amount="{{ entry.amount }}" data-entry-desc="{{ (entry.description or entry.notes or '')|e }}"
                                   onsubmit="return confirmDeleteEntry(this)">
                                 <input type="hidden" name="customer_id" value="{{ customer.id }}">
-                                <button type="submit" class="btn-icon-delete" title="Delete permanently">
+                                <button type="submit" class="btn-icon-delete" title="Delete entry">
                                     <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
                                 </button>
                             </form>
@@ -943,7 +928,7 @@
     let currentEntryType = null;
 
 
-    // Confirm delete entry (permanent)
+    // Confirm delete entry
     function confirmDeleteEntry(form) {
         const entryType = form.dataset.entryType || '';
         const amount = parseFloat(form.dataset.entryAmount) || 0;
@@ -952,12 +937,10 @@
         const amountText = entryType === 'NEW_DEBT' ? `+$${Math.abs(amount).toFixed(2)}` : `-$${Math.abs(amount).toFixed(2)}`;
         const descText = description && description.trim() ? `\nDescription: ${description}` : '';
         
-        const message = `⚠️ WARNING: This will PERMANENTLY delete this ${entryTypeText.toLowerCase()} entry!\n\n` +
+        const message = `Delete this ${entryTypeText.toLowerCase()} entry?\n\n` +
                        `Amount: ${amountText}${descText}\n\n` +
-                       `This entry will be completely removed from the system.\n` +
-                       `Note: The balance will NOT be recalculated - it will stay as is.\n` +
-                       `This action CANNOT be undone.\n\n` +
-                       `Are you absolutely sure?`;
+                       `The entry will be removed from this history and the balance will be recalculated.\n` +
+                       `You can undo it from the message shown after deletion.`;
         
         return confirm(message);
     }

@@ -320,6 +320,8 @@ def _apply_fifo_for_payment(cursor, customer_id, payment_amount):
         WHERE customer_id = ? AND entry_type = 'NEW_DEBT'
           AND payment_status IN ('OPEN', 'PARTIAL')
           AND remaining_amount > 0
+          AND is_voided = 0
+          AND is_deleted = 0
         ORDER BY created_at ASC
     ''', (customer_id,))
     debts = cursor.fetchall()
@@ -352,12 +354,16 @@ def _recalculate_customer_fifo(cursor, customer_id):
     cursor.execute('''
         UPDATE ledger SET remaining_amount = amount, payment_status = 'OPEN'
         WHERE customer_id = ? AND entry_type = 'NEW_DEBT'
+          AND is_voided = 0
+          AND is_deleted = 0
     ''', (customer_id,))
 
     # Get all payments in chronological order
     cursor.execute('''
         SELECT id, amount FROM ledger
         WHERE customer_id = ? AND entry_type = 'PAYMENT'
+          AND is_voided = 0
+          AND is_deleted = 0
         ORDER BY created_at ASC
     ''', (customer_id,))
     payments = cursor.fetchall()
@@ -1740,14 +1746,14 @@ def update_payment_entry(ledger_id, amount, notes=None):
         conn.commit()
 
 def recalculate_all_customer_balances(customer_id, conn):
-    """Recalculate balance_after for all entries of a customer (voided and deleted entries still count)"""
+    """Recalculate balance_after for all active entries of a customer."""
     cursor = conn.cursor()
     
-    # Get all entries in chronological order (voided and deleted entries still count in balance)
+    # Get active entries in chronological order so deleted entries no longer affect the running balance.
     cursor.execute('''
         SELECT id, entry_type, amount
         FROM ledger
-        WHERE customer_id = ?
+        WHERE customer_id = ? AND is_voided = 0 AND is_deleted = 0
         ORDER BY id ASC
     ''', (customer_id,))
     
@@ -1840,7 +1846,34 @@ def delete_ledger_entry(ledger_id):
             SET is_deleted = 1, deleted_at = ?
             WHERE id = ?
         ''', (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), ledger_id))
+
+        customer_id = result['customer_id']
+        recalculate_all_customer_balances(customer_id, conn)
+        _recalculate_customer_fifo(cursor, customer_id)
         
+        conn.commit()
+        return True
+
+def restore_deleted_ledger_entry(ledger_id):
+    """Restore a soft-deleted ledger entry and recalculate balances/FIFO."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT customer_id FROM ledger WHERE id = ? AND is_deleted = 1', (ledger_id,))
+        result = cursor.fetchone()
+        if not result:
+            return False
+
+        cursor.execute('''
+            UPDATE ledger
+            SET is_deleted = 0, deleted_at = NULL
+            WHERE id = ?
+        ''', (ledger_id,))
+
+        customer_id = result['customer_id']
+        recalculate_all_customer_balances(customer_id, conn)
+        _recalculate_customer_fifo(cursor, customer_id)
+
         conn.commit()
         return True
 

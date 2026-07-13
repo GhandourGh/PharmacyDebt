@@ -268,6 +268,18 @@ class TestLedgerRoutes:
         }, follow_redirects=True)
         assert resp.status_code == 200
 
+    def test_restore_deleted_entry(self, client, customer_with_debt):
+        cid = customer_with_debt["id"]
+        ledger = db.get_customer_ledger(cid, include_voided=True)
+        lid = ledger[0]["id"]
+        db.delete_ledger_entry(lid)
+        resp = client.post(f"/ledger/{lid}/restore-deleted", data={
+            "customer_id": str(cid),
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        restored = db.get_customer_ledger(cid, include_voided=True)
+        assert any(e["id"] == lid for e in restored)
+
     def test_edit_debt_entry(self, client, customer_with_debt):
         cid = customer_with_debt["id"]
         ledger = db.get_customer_ledger(cid, include_voided=True)
