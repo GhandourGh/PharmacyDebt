@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
 import database as db
 from pdf_export import generate_debt_report, generate_customer_report, generate_all_customers_debt_report, generate_debt_report_by_date_range
+from statement_print import build_outstanding_statement
 from validators import (
     ValidationError, validate_amount, validate_quantity,
     validate_payment_amount, validate_date_range, validate_customer_active,
@@ -339,55 +340,14 @@ def customer_detail(customer_id):
     # Get unpaid debts for FIFO display
     unpaid_debts = db.get_unpaid_debts(customer_id)
 
-    # Print: unpaid-only rows (OPEN/PARTIAL with balance due)
-    receipt_ledger = []
-    for e in ledger:
-        if e.get('is_voided') or e.get('entry_type') != 'NEW_DEBT' or e.get('payment_status') not in ('OPEN', 'PARTIAL'):
-            continue
-        remaining = e.get('remaining_amount') if e.get('remaining_amount') is not None else e.get('amount', 0)
-        if (remaining or 0) <= 0:
-            continue
-        receipt_ledger.append(e)
-    receipt_ledger.sort(key=lambda x: (x.get('created_at') or '', x.get('id', 0)), reverse=True)
-
-    # Print: full account (all purchases with paid/unpaid/partial status)
-    full_receipt_ledger = []
-    for e in ledger:
-        if e.get('is_voided') or e.get('entry_type') != 'NEW_DEBT':
-            continue
-        status = e.get('payment_status') or 'OPEN'
-        if status == 'PAID':
-            status_label = 'Paid'
-        elif status == 'PARTIAL':
-            status_label = 'Partial'
-        else:
-            status_label = 'Unpaid'
-        remaining = e.get('remaining_amount')
-        if remaining is None:
-            remaining = e.get('amount', 0)
-        amount_due = max(0.0, float(remaining or 0))
-        full_receipt_ledger.append({
-            **e,
-            'status_label': status_label,
-            'amount_due': amount_due,
-        })
-    full_receipt_ledger.sort(key=lambda x: (x.get('created_at') or '', x.get('id', 0)), reverse=True)
-
-    # Print: payment history — every real (non-voided) payment, oldest first
-    receipt_payments = [
-        e for e in ledger
-        if e.get('entry_type') == 'PAYMENT' and not e.get('is_voided')
-    ]
-    receipt_payments.sort(key=lambda x: (x.get('created_at') or '', x.get('id', 0)))
-    receipt_payments_total = sum(abs(e.get('amount', 0) or 0) for e in receipt_payments)
+    # Shared print data: chronological account activity with running balance
+    # (same non-voided ledger rules as get_customer_balance)
+    outstanding_statement = build_outstanding_statement(ledger)
 
     return render_template('customer_detail.html',
                          customer=customer,
                          ledger=ledger,
-                         receipt_ledger=receipt_ledger,
-                         full_receipt_ledger=full_receipt_ledger,
-                         receipt_payments=receipt_payments,
-                         receipt_payments_total=receipt_payments_total,
+                         outstanding_statement=outstanding_statement,
                          total_debt=total_debt,
                          display_debt=display_debt,
                          total_paid=total_paid,

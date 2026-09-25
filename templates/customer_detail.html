@@ -3,200 +3,102 @@
 {% block title %}{{ customer.name }} - Pharmacy Thabet{% endblock %}
 
 {% block content %}
-<!-- Print-only: unpaid items -->
-<div class="print-receipt-only print-receipt-unpaid receipt-document" style="display: none;">
-    <div class="receipt-page">
-        <header class="receipt-header">
-            <div class="receipt-brand">Pharmacy Thabet</div>
-            <div class="receipt-subtitle">Outstanding Statement</div>
+{% set stmt = outstanding_statement or {'activity': [], 'total_charges': 0, 'total_payments': 0, 'balance_due': 0} %}
+{% set stmt_balance = stmt.balance_due %}
+
+{% macro account_statement_body(title) %}
+    <div class="receipt-page statement-page">
+        <header class="statement-header">
+            <div class="statement-brand">Pharmacy Thabet</div>
+            <div class="statement-subtitle">{{ title }}</div>
+            <div class="statement-meta">Generated on <span class="receipt-print-date"></span></div>
         </header>
 
-        <section class="receipt-customer">
-            <h1 class="receipt-customer-name">{{ customer.name }}</h1>
-            {% if customer.phone %}<p class="receipt-customer-line">Phone: {{ customer.phone }}</p>{% endif %}
-            {% if customer.address %}<p class="receipt-customer-line">Address: {{ customer.address }}</p>{% endif %}
-            {% if customer.email %}<p class="receipt-customer-line">Email: {{ customer.email }}</p>{% endif %}
+        <section class="statement-customer">
+            <div class="statement-customer-name">{{ customer.name }}</div>
+            {% if customer.phone %}<div class="statement-customer-line">Phone: {{ customer.phone }}</div>{% endif %}
         </section>
 
-        <section class="receipt-summary">
-            <table class="receipt-summary-table">
+        <section class="statement-balance-block">
+            <div class="statement-balance-label">
+                {% if stmt_balance < 0 %}CURRENT CREDIT BALANCE{% else %}CURRENT BALANCE DUE{% endif %}
+            </div>
+            <div class="statement-balance-amount">${{ "%.2f"|format(stmt_balance|abs) }}</div>
+        </section>
+
+        <section class="statement-summary">
+            <table class="statement-summary-table">
                 <tr>
-                    <td class="receipt-summary-label">{% if total_debt < 0 %}Credit Balance{% else %}Amount Due{% endif %}</td>
-                    <td class="receipt-summary-value {% if total_debt < 0 %}receipt-credit{% endif %}">${{ "%.2f"|format(total_debt|abs) }}</td>
+                    <td>Total Charges</td>
+                    <td class="statement-num">${{ "%.2f"|format(stmt.total_charges) }}</td>
+                </tr>
+                <tr>
+                    <td>Payments Received</td>
+                    <td class="statement-num">${{ "%.2f"|format(stmt.total_payments) }}</td>
+                </tr>
+                <tr class="statement-summary-total">
+                    <td>{% if stmt_balance < 0 %}Credit Balance{% else %}Balance Due{% endif %}</td>
+                    <td class="statement-num">${{ "%.2f"|format(stmt_balance|abs) }}</td>
                 </tr>
             </table>
-            <p class="receipt-debt-left {% if total_debt < 0 %}receipt-credit{% endif %}">{% if total_debt < 0 %}Credit Balance: ${{ "%.2f"|format(total_debt|abs) }}{% else %}Debt Left: ${{ "%.2f"|format(total_debt) }}{% endif %}</p>
         </section>
 
-        <section class="receipt-items">
-            <h2 class="receipt-section-title">Outstanding Items</h2>
-            {% if receipt_ledger %}
-            <table class="receipt-table">
+        <section class="statement-activity">
+            <h2 class="statement-section-title">Account Activity</h2>
+            {% if stmt.activity %}
+            <table class="statement-table">
                 <thead>
                     <tr>
-                        <th class="receipt-th receipt-th-date">Date</th>
-                        <th class="receipt-th receipt-th-items">Items</th>
-                        <th class="receipt-th receipt-th-amount">Amount Due</th>
-                        <th class="receipt-th receipt-th-notes">Notes</th>
+                        <th class="st-col-date">Date</th>
+                        <th class="st-col-activity">Activity</th>
+                        <th class="st-col-details">Details</th>
+                        <th class="st-col-money">Charge</th>
+                        <th class="st-col-money">Payment</th>
+                        <th class="st-col-money">Balance</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for entry in receipt_ledger %}
-                    {% set amount_due = entry.remaining_amount if entry.remaining_amount is not none else entry.amount %}
-                    <tr class="receipt-tr">
-                        <td class="receipt-td receipt-td-date">{{ entry.created_at[:10] if entry.created_at else '-' }}</td>
-                        <td class="receipt-td receipt-td-items">
-                            {% set items_list = entry.get('items', []) %}
-                            {% if items_list %}
-                            {% for item in items_list %}{{ item.product_name }}{% if item.quantity > 1 %} (x{{ item.quantity }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
-                            {% else %}-{% endif %}
-                        </td>
-                        <td class="receipt-td receipt-td-amount">${{ "%.2f"|format(amount_due) }}</td>
-                        <td class="receipt-td receipt-td-notes">{{ entry.description or entry.notes or '-' }}</td>
+                    {% for row in stmt.activity %}
+                    <tr>
+                        <td class="st-col-date">{{ row.date }}</td>
+                        <td class="st-col-activity">{{ row.activity }}</td>
+                        <td class="st-col-details">{{ row.details }}</td>
+                        <td class="st-col-money">{% if row.charge is not none %}${{ "%.2f"|format(row.charge) }}{% else %}—{% endif %}</td>
+                        <td class="st-col-money">{% if row.payment is not none %}${{ "%.2f"|format(row.payment) }}{% else %}—{% endif %}</td>
+                        <td class="st-col-money st-balance">${{ "%.2f"|format(row.balance) }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
+                <tfoot>
+                    <tr class="statement-final-row">
+                        <td colspan="5" class="statement-final-label">
+                            {% if stmt_balance < 0 %}CURRENT CREDIT BALANCE{% else %}CURRENT BALANCE DUE{% endif %}
+                        </td>
+                        <td class="st-col-money statement-final-amount">${{ "%.2f"|format(stmt_balance|abs) }}</td>
+                    </tr>
+                </tfoot>
             </table>
+            <p class="statement-footnote">Payments shown above have already been deducted from the balance.</p>
             {% else %}
-            <p class="receipt-empty">No outstanding items.</p>
+            <p class="statement-empty">No account activity.</p>
+            <p class="statement-final-standalone">
+                <span>{% if stmt_balance < 0 %}CURRENT CREDIT BALANCE{% else %}CURRENT BALANCE DUE{% endif %}</span>
+                <strong>${{ "%.2f"|format(stmt_balance|abs) }}</strong>
+            </p>
             {% endif %}
         </section>
-
-        {% if receipt_payments %}
-        <section class="receipt-items">
-            <h2 class="receipt-section-title">Payment History</h2>
-            <table class="receipt-table">
-                <thead>
-                    <tr>
-                        <th class="receipt-th receipt-th-date">Payment Date</th>
-                        <th class="receipt-th receipt-th-amount">Amount Paid</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for payment in receipt_payments %}
-                    <tr class="receipt-tr">
-                        <td class="receipt-td receipt-td-date">{{ payment.created_at[:10] if payment.created_at else '-' }}</td>
-                        <td class="receipt-td receipt-td-amount receipt-credit">${{ "%.2f"|format(payment.amount|abs) }}</td>
-                    </tr>
-                    {% endfor %}
-                    <tr class="receipt-tr">
-                        <td class="receipt-td receipt-td-date"><strong>Total Paid</strong></td>
-                        <td class="receipt-td receipt-td-amount receipt-credit"><strong>${{ "%.2f"|format(receipt_payments_total) }}</strong></td>
-                    </tr>
-                </tbody>
-            </table>
-        </section>
-        {% endif %}
-
-        <footer class="receipt-footer">
-            Generated on <span class="receipt-print-date"></span>
-        </footer>
     </div>
+{% endmacro %}
+
+<!-- Print-only: outstanding statement -->
+<div class="print-receipt-only print-receipt-unpaid receipt-document statement-document" style="display: none;">
+    {{ account_statement_body('Outstanding Statement') }}
 </div>
 
-{% if full_receipt_ledger %}
-<!-- Print-only: full account (paid + unpaid) -->
-<div class="print-receipt-only print-receipt-full receipt-document" style="display: none;">
-    <div class="receipt-page">
-        <header class="receipt-header">
-            <div class="receipt-brand">Pharmacy Thabet</div>
-            <div class="receipt-subtitle">Account Statement</div>
-        </header>
-
-        <section class="receipt-customer">
-            <h1 class="receipt-customer-name">{{ customer.name }}</h1>
-            {% if customer.phone %}<p class="receipt-customer-line">Phone: {{ customer.phone }}</p>{% endif %}
-            {% if customer.address %}<p class="receipt-customer-line">Address: {{ customer.address }}</p>{% endif %}
-            {% if customer.email %}<p class="receipt-customer-line">Email: {{ customer.email }}</p>{% endif %}
-        </section>
-
-        <section class="receipt-summary">
-            <table class="receipt-summary-table">
-                <tr>
-                    <td class="receipt-summary-label">Total Purchases</td>
-                    <td class="receipt-summary-value">${{ "%.2f"|format(total_original) }}</td>
-                </tr>
-                <tr>
-                    <td class="receipt-summary-label">Total Paid</td>
-                    <td class="receipt-summary-value receipt-credit">${{ "%.2f"|format(total_paid) }}</td>
-                </tr>
-                <tr>
-                    <td class="receipt-summary-label">Balance Due</td>
-                    <td class="receipt-summary-value {% if total_debt <= 0 %}receipt-credit{% endif %}">${{ "%.2f"|format(display_debt if total_debt > 0 else 0) }}</td>
-                </tr>
-            </table>
-            <p class="receipt-debt-left {% if total_debt <= 0 %}receipt-credit{% endif %}">
-                {% if total_debt < 0 %}Credit Balance: ${{ "%.2f"|format(total_debt|abs) }}{% elif total_debt > 0 %}Balance Due: ${{ "%.2f"|format(total_debt) }}{% else %}Balance Due: $0.00{% endif %}
-            </p>
-        </section>
-
-        <section class="receipt-items">
-            <h2 class="receipt-section-title">All Items</h2>
-            <table class="receipt-table receipt-table-full">
-                <thead>
-                    <tr>
-                        <th class="receipt-th receipt-th-date">Date</th>
-                        <th class="receipt-th receipt-th-items">Items</th>
-                        <th class="receipt-th receipt-th-amount">Total</th>
-                        <th class="receipt-th receipt-th-status">Status</th>
-                        <th class="receipt-th receipt-th-amount">Due</th>
-                        <th class="receipt-th receipt-th-notes">Notes</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for entry in full_receipt_ledger %}
-                    <tr class="receipt-tr">
-                        <td class="receipt-td receipt-td-date">{{ entry.created_at[:10] if entry.created_at else '-' }}</td>
-                        <td class="receipt-td receipt-td-items">
-                            {% set items_list = entry.get('items', []) %}
-                            {% if items_list %}
-                            {% for item in items_list %}{{ item.product_name }}{% if item.quantity > 1 %} (x{{ item.quantity }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
-                            {% else %}-{% endif %}
-                        </td>
-                        <td class="receipt-td receipt-td-amount">${{ "%.2f"|format(entry.amount) }}</td>
-                        <td class="receipt-td receipt-td-status">
-                            <span class="receipt-status receipt-status-{{ entry.status_label|lower }}">{{ entry.status_label }}</span>
-                        </td>
-                        <td class="receipt-td receipt-td-amount">${{ "%.2f"|format(entry.amount_due) }}</td>
-                        <td class="receipt-td receipt-td-notes">{{ entry.description or entry.notes or '-' }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </section>
-
-        {% if receipt_payments %}
-        <section class="receipt-items">
-            <h2 class="receipt-section-title">Payment History</h2>
-            <table class="receipt-table">
-                <thead>
-                    <tr>
-                        <th class="receipt-th receipt-th-date">Payment Date</th>
-                        <th class="receipt-th receipt-th-amount">Amount Paid</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for payment in receipt_payments %}
-                    <tr class="receipt-tr">
-                        <td class="receipt-td receipt-td-date">{{ payment.created_at[:10] if payment.created_at else '-' }}</td>
-                        <td class="receipt-td receipt-td-amount receipt-credit">${{ "%.2f"|format(payment.amount|abs) }}</td>
-                    </tr>
-                    {% endfor %}
-                    <tr class="receipt-tr">
-                        <td class="receipt-td receipt-td-date"><strong>Total Paid</strong></td>
-                        <td class="receipt-td receipt-td-amount receipt-credit"><strong>${{ "%.2f"|format(receipt_payments_total) }}</strong></td>
-                    </tr>
-                </tbody>
-            </table>
-        </section>
-        {% endif %}
-
-        <footer class="receipt-footer">
-            Generated on <span class="receipt-print-date"></span>
-        </footer>
-    </div>
+<!-- Print-only: full account statement (same design family) -->
+<div class="print-receipt-only print-receipt-full receipt-document statement-document" style="display: none;">
+    {{ account_statement_body('Account Statement') }}
 </div>
-{% endif %}
 
 <div class="page-header no-print">
     <div style="display: flex; align-items: center; gap: 1rem;">
@@ -232,12 +134,10 @@
             <i data-lucide="printer"></i>
             Print Unpaid
         </button>
-        {% if full_receipt_ledger %}
         <button type="button" onclick="printCustomerReceipt('full')" class="btn btn-secondary">
             <i data-lucide="printer"></i>
             Print Full Account
         </button>
-        {% endif %}
     </div>
 </div>
 

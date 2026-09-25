@@ -189,7 +189,8 @@ class TestPaymentRoutes:
         assert resp.status_code == 200
         assert db.get_customer_balance(cid) == pytest.approx(0.0, abs=0.01)
         assert b"Print Full Account" in resp.data
-        assert b"All Items" in resp.data
+        assert b"Account Activity" in resp.data
+        assert b"Account Statement" in resp.data
 
     def test_add_payment_shows_full_account_print(self, client, customer_with_debt):
         cid = customer_with_debt["id"]

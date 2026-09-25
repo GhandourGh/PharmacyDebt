@@ -2800,6 +2800,12 @@ tr.voided td {
     margin: 0.2cm 0.55cm 0.65cm 0.55cm;
 }
 
+/* Outstanding statement: A4 with sensible margins */
+@page account-statement {
+    size: A4;
+    margin: 12mm 14mm 14mm 14mm;
+}
+
 @media print {
 
     /* Receipt-only print: clean A5 page, no app UI */
@@ -2829,6 +2835,7 @@ tr.voided td {
         display: block !important;
         width: 100%;
         max-width: none;
+        page: account-statement;
     }
 
     /* Dedicated A5 receipt template – own layout, no app UI */
@@ -3017,6 +3024,228 @@ tr.voided td {
         margin-top: 0.3cm;
         padding-top: 0.15cm;
         border-top: 1px solid #e2e8f0;
+    }
+
+    /* ── Account statements (B&W, A4) — unpaid + full ───────────── */
+    .statement-document .statement-page {
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-size: 9.5pt;
+        line-height: 1.35;
+        color: #111;
+        background: #fff;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .statement-document .statement-header {
+        text-align: center;
+        border-bottom: 1.5pt solid #111;
+        padding-bottom: 0.35cm;
+        margin-bottom: 0.4cm;
+    }
+    .statement-document .statement-brand {
+        font-size: 14pt;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        color: #111;
+        margin: 0;
+        line-height: 1.15;
+    }
+    .statement-document .statement-subtitle {
+        font-size: 10pt;
+        font-weight: 600;
+        color: #333;
+        margin: 0.12rem 0 0;
+    }
+    .statement-document .statement-meta {
+        font-size: 8pt;
+        color: #555;
+        margin-top: 0.2rem;
+    }
+    .statement-document .statement-customer {
+        margin-bottom: 0.35cm;
+    }
+    .statement-document .statement-customer-name {
+        font-size: 12pt;
+        font-weight: 700;
+        color: #111;
+        margin: 0;
+    }
+    .statement-document .statement-customer-line {
+        font-size: 8.5pt;
+        color: #444;
+        margin-top: 0.1rem;
+    }
+    .statement-document .statement-balance-block {
+        text-align: center;
+        border: 1.25pt solid #111;
+        padding: 0.35cm 0.4cm;
+        margin-bottom: 0.35cm;
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+    .statement-document .statement-balance-label {
+        font-size: 8pt;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: #222;
+        margin: 0;
+    }
+    .statement-document .statement-balance-amount {
+        font-size: 18pt;
+        font-weight: 700;
+        color: #111;
+        margin-top: 0.1rem;
+        line-height: 1.1;
+        font-variant-numeric: tabular-nums;
+    }
+    .statement-document .statement-summary {
+        margin-bottom: 0.45cm;
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+    .statement-document .statement-summary-table {
+        width: 100%;
+        max-width: 9cm;
+        margin: 0 auto;
+        border-collapse: collapse;
+        font-size: 9pt;
+    }
+    .statement-document .statement-summary-table td {
+        padding: 0.12rem 0.2rem;
+        border: none;
+        color: #222;
+    }
+    .statement-document .statement-summary-table .statement-num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    .statement-document .statement-summary-total td {
+        border-top: 1pt solid #111;
+        padding-top: 0.22rem;
+        font-weight: 700;
+    }
+    .statement-document .statement-section-title {
+        font-size: 10pt;
+        font-weight: 700;
+        color: #111;
+        margin: 0 0 0.25rem;
+        letter-spacing: 0.02em;
+    }
+    .statement-document .statement-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 8.5pt;
+        table-layout: fixed;
+        display: table !important;
+        page-break-inside: auto !important;
+        break-inside: auto !important;
+    }
+    .statement-document .statement-table thead {
+        display: table-header-group !important;
+    }
+    .statement-document .statement-table tbody {
+        display: table-row-group !important;
+    }
+    .statement-document .statement-table tfoot {
+        display: table-footer-group !important;
+    }
+    .statement-document .statement-table th {
+        text-align: left;
+        font-weight: 700;
+        font-size: 7.5pt;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: #111;
+        background: #ececec;
+        border-top: 1pt solid #111;
+        border-bottom: 1pt solid #111;
+        padding: 0.22rem 0.25rem;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .statement-document .statement-table td {
+        padding: 0.28rem 0.25rem;
+        border-bottom: 0.5pt solid #ccc;
+        vertical-align: top;
+        color: #111;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    .statement-document .statement-table tbody tr {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    .statement-document .st-col-date {
+        width: 14%;
+        white-space: nowrap;
+    }
+    .statement-document .st-col-activity {
+        width: 12%;
+    }
+    .statement-document .st-col-details {
+        width: 32%;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+    .statement-document .st-col-money {
+        width: 14%;
+        text-align: right !important;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    .statement-document .statement-table th.st-col-money {
+        text-align: right !important;
+    }
+    .statement-document .st-balance {
+        font-weight: 600;
+    }
+    .statement-document .statement-final-row td {
+        border-top: 1.5pt solid #111;
+        border-bottom: none;
+        padding-top: 0.35rem;
+        font-weight: 700;
+        background: #fff;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    .statement-document .statement-final-label {
+        text-align: left;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-size: 8pt;
+    }
+    .statement-document .statement-final-amount {
+        font-size: 10pt;
+    }
+    .statement-document .statement-footnote {
+        font-size: 7.5pt;
+        color: #555;
+        margin: 0.35cm 0 0;
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+    .statement-document .statement-empty {
+        font-size: 9pt;
+        color: #555;
+        margin: 0.2rem 0;
+    }
+    .statement-document .statement-final-standalone {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        border-top: 1.5pt solid #111;
+        margin-top: 0.35cm;
+        padding-top: 0.3rem;
+        font-size: 9pt;
+        font-weight: 700;
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+    .statement-document .statement-activity {
+        overflow: visible !important;
+        page-break-inside: auto !important;
+        break-inside: auto !important;
     }
 
     /* Hide navbar and app chrome so only receipt is visible */
