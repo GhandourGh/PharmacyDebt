@@ -888,7 +888,7 @@ def get_ledger_items(ledger_id):
 
 
 def get_unpaid_debts(customer_id):
-    """Get all OPEN and PARTIAL debt entries for a customer (FIFO-aware), with items."""
+    """Get all OPEN and PARTIAL debt entries with money remaining (FIFO-aware), with items."""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
@@ -897,6 +897,8 @@ def get_unpaid_debts(customer_id):
             LEFT JOIN users u ON l.created_by = u.id
             WHERE l.customer_id = ? AND l.entry_type = 'NEW_DEBT'
               AND l.payment_status IN ('OPEN', 'PARTIAL')
+              AND COALESCE(l.remaining_amount, l.amount, 0) > 0
+              AND l.is_voided = 0
               AND l.is_deleted = 0
             ORDER BY l.created_at ASC
         ''', (customer_id,))

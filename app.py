@@ -6,8 +6,8 @@ from flask import Flask, render_template, request, redirect, url_for, jsonify, s
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
 import database as db
-from pdf_export import generate_debt_report, generate_customer_report, generate_all_customers_debt_report, generate_debt_report_by_date_range
-from statement_print import build_outstanding_statement
+from pdf_export import generate_debt_report, generate_all_customers_debt_report, generate_debt_report_by_date_range
+from statement_print import build_outstanding_statement, build_unpaid_statement
 from validators import (
     ValidationError, validate_amount, validate_quantity,
     validate_payment_amount, validate_date_range, validate_customer_active,
@@ -343,11 +343,13 @@ def customer_detail(customer_id):
     # Shared print data: chronological account activity with running balance
     # (same non-voided ledger rules as get_customer_balance)
     outstanding_statement = build_outstanding_statement(ledger)
+    unpaid_statement = build_unpaid_statement(unpaid_debts, total_debt)
 
     return render_template('customer_detail.html',
                          customer=customer,
                          ledger=ledger,
                          outstanding_statement=outstanding_statement,
+                         unpaid_statement=unpaid_statement,
                          total_debt=total_debt,
                          display_debt=display_debt,
                          total_paid=total_paid,
@@ -982,78 +984,6 @@ def export_overdue_pdf():
     except Exception as e:
         flash(f'Error generating overdue report: {str(e)}', 'error')
         return redirect(url_for('reports', type='overdue'))
-
-@app.route('/customers/<int:customer_id>/export-pdf')
-def export_customer_pdf(customer_id):
-    customer = db.get_customer(customer_id)
-    if not customer:
-        flash('Customer not found.', 'error')
-        return redirect(url_for('customers'))
-
-    ledger = db.get_customer_ledger(customer_id, include_voided=False)
-    total_debt = db.get_customer_balance(customer_id)
-
-    total_paid = sum(abs(entry.get('amount', 0)) for entry in ledger if entry.get('entry_type') == 'PAYMENT')
-    total_original = sum(entry.get('amount', 0) for entry in ledger if entry.get('entry_type') == 'NEW_DEBT')
-
-    # Every payment the customer has made, oldest first, for the Payment History section.
-    payment_history = sorted(
-        (entry for entry in ledger if entry.get('entry_type') == 'PAYMENT'),
-        key=lambda x: (x.get('created_at') or '', x.get('id', 0))
-    )
-
-    print_mode = request.args.get('print', 'unpaid')
-
-    if print_mode == 'full':
-        full_ledger = []
-        for entry in ledger:
-            if entry.get('entry_type') != 'NEW_DEBT':
-                continue
-            status = entry.get('payment_status') or 'OPEN'
-            if status == 'PAID':
-                status_label = 'Paid'
-            elif status == 'PARTIAL':
-                status_label = 'Partial'
-            else:
-                status_label = 'Unpaid'
-            remaining = entry.get('remaining_amount')
-            if remaining is None:
-                remaining = entry.get('amount', 0)
-            full_ledger.append({
-                **entry,
-                'status_label': status_label,
-                'amount_due': max(0.0, float(remaining or 0)),
-            })
-        full_ledger.sort(key=lambda x: (x.get('created_at') or '', x.get('id', 0)), reverse=True)
-        pdf_buffer = generate_customer_report(
-            customer, full_ledger, payment_history, total_debt,
-            total_debts=total_original, total_payments=total_paid,
-            account_full=True
-        )
-    else:
-        pdf_ledger = []
-        for entry in ledger:
-            if entry.get('entry_type') != 'NEW_DEBT' or entry.get('payment_status') not in ('OPEN', 'PARTIAL'):
-                continue
-            remaining = entry.get('remaining_amount') if entry.get('remaining_amount') is not None else entry.get('amount', 0)
-            if (remaining or 0) <= 0:
-                continue
-            pdf_ledger.append(entry)
-        pdf_ledger.sort(key=lambda x: (x.get('created_at') or '', x.get('id', 0)), reverse=True)
-
-        total_remaining = sum(
-            entry.get('remaining_amount', entry.get('amount', 0)) or entry.get('amount', 0)
-            for entry in pdf_ledger
-        )
-
-        pdf_buffer = generate_customer_report(
-            customer, pdf_ledger, payment_history, total_debt,
-            total_debts=total_remaining, total_payments=0,
-            statements_only=True
-        )
-
-    filename = f"report_{customer['name']}_{datetime.now().strftime('%Y%m%d')}.pdf"
-    return send_file(pdf_buffer, as_attachment=True, download_name=filename, mimetype='application/pdf')
 
 @app.route('/reports/download-all-debts')
 def download_all_debts_pdf():

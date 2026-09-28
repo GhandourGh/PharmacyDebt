@@ -90,9 +90,80 @@
     </div>
 {% endmacro %}
 
-<!-- Print-only: outstanding statement -->
+{% macro unpaid_statement_body() %}
+    {% set unpaid = unpaid_statement or {'rows': [], 'outstanding_total': 0, 'adjustment': 0, 'has_adjustment': False, 'total_due': 0} %}
+    {% set total_label = 'CURRENT CREDIT BALANCE' if unpaid.total_due < 0 else 'TOTAL DUE' %}
+    <div class="receipt-page statement-page">
+        <header class="statement-header">
+            <div class="statement-brand">Pharmacy Thabet</div>
+            <div class="statement-subtitle">Outstanding Statement</div>
+            <div class="statement-meta">Generated on <span class="receipt-print-date"></span></div>
+        </header>
+
+        <section class="statement-customer">
+            <div class="statement-customer-name">{{ customer.name }}</div>
+            {% if customer.phone %}<div class="statement-customer-line">Phone: {{ customer.phone }}</div>{% endif %}
+        </section>
+
+        <section class="statement-balance-block">
+            <div class="statement-balance-label">{{ total_label }}</div>
+            <div class="statement-balance-amount">${{ "%.2f"|format(unpaid.total_due|abs) }}</div>
+        </section>
+
+        <section class="statement-activity">
+            <h2 class="statement-section-title">Outstanding Debts</h2>
+            <table class="statement-table">
+                <thead>
+                    <tr>
+                        <th class="st-col-date">Date</th>
+                        <th class="st-col-details">Items</th>
+                        <th class="st-col-money">Original</th>
+                        <th class="st-col-money">Paid</th>
+                        <th class="st-col-money">Remaining</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in unpaid.rows %}
+                    <tr class="unpaid-row">
+                        <td class="st-col-date">{{ row.date }}</td>
+                        <td class="st-col-details">{{ row.details }}</td>
+                        <td class="st-col-money">${{ "%.2f"|format(row.original) }}</td>
+                        <td class="st-col-money">{% if row.paid is not none %}${{ "%.2f"|format(row.paid) }}{% else %}—{% endif %}</td>
+                        <td class="st-col-money st-balance">${{ "%.2f"|format(row.remaining) }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="statement-empty">No outstanding debts.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    {% if unpaid.has_adjustment %}
+                    <tr>
+                        <td colspan="4" class="statement-final-label">Outstanding debts</td>
+                        <td class="st-col-money">${{ "%.2f"|format(unpaid.outstanding_total) }}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="4" class="statement-final-label">Adjustments</td>
+                        <td class="st-col-money">{% if unpaid.adjustment < 0 %}-{% else %}+{% endif %}${{ "%.2f"|format(unpaid.adjustment|abs) }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr class="statement-final-row">
+                        <td colspan="4" class="statement-final-label">{{ total_label }}</td>
+                        <td class="st-col-money statement-final-amount">${{ "%.2f"|format(unpaid.total_due|abs) }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+            {% if unpaid.has_adjustment %}
+            <p class="statement-footnote">Adjustments include write-offs, refunds and other account corrections.</p>
+            {% endif %}
+        </section>
+    </div>
+{% endmacro %}
+
+<!-- Print-only: outstanding statement (only debts with money remaining) -->
 <div class="print-receipt-only print-receipt-unpaid receipt-document statement-document" style="display: none;">
-    {{ account_statement_body('Outstanding Statement') }}
+    {{ unpaid_statement_body() }}
 </div>
 
 <!-- Print-only: full account statement (same design family) -->

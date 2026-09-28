@@ -419,12 +419,6 @@ class TestPDFExportRoutes:
         assert resp.status_code == 200
         assert resp.content_type == "application/pdf"
 
-    def test_export_customer_pdf(self, client, customer_with_debt):
-        cid = customer_with_debt["id"]
-        resp = client.get(f"/customers/{cid}/export-pdf")
-        assert resp.status_code == 200
-        assert resp.content_type == "application/pdf"
-
     def test_export_aging_pdf(self, client, customer_with_debt):
         resp = client.get("/reports/export-aging-pdf")
         assert resp.status_code == 200
@@ -585,16 +579,11 @@ class TestFullUserJourney:
         resp = client.get("/reports?type=daily")
         assert resp.status_code == 200
 
-        # 8. Export PDF
-        resp = client.get(f"/customers/{cid}/export-pdf")
-        assert resp.status_code == 200
-        assert resp.content_type == "application/pdf"
-
-        # 9. Mark as paid
+        # 8. Mark as paid
         resp = client.post(f"/customers/{cid}/mark-paid", follow_redirects=True)
         assert resp.status_code == 200
         assert db.get_customer_balance(cid) == pytest.approx(0.0, abs=0.01)
 
-        # 10. Check dashboard stats
+        # 9. Check dashboard stats
         resp = client.get("/api/dashboard-stats")
         assert resp.status_code == 200

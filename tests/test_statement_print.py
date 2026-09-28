@@ -3,7 +3,7 @@
 import pytest
 
 import database as db
-from statement_print import build_outstanding_statement
+from statement_print import build_outstanding_statement, build_unpaid_statement
 
 
 def _add_debt(cid, amount, name="Item"):
@@ -11,6 +11,145 @@ def _add_debt(cid, amount, name="Item"):
         cid,
         [{"product_name": name, "price": amount, "quantity": 1}],
     )
+
+
+def _unpaid(cid):
+    return build_unpaid_statement(db.get_unpaid_debts(cid), db.get_customer_balance(cid))
+
+
+def _unpaid_html(data):
+    return data.split(b"print-receipt-unpaid")[1].split(b"print-receipt-full")[0]
+
+
+class TestUnpaidStatementBuilder:
+    def test_fully_paid_history_then_new_debt(self, sample_customer):
+        cid = sample_customer["id"]
+        for i in range(100):
+            _add_debt(cid, 2.0, f"OldItem-{i}")
+        db.add_payment(cid, 200.0)
+        assert db.get_customer_balance(cid) == pytest.approx(0.0)
+        _add_debt(cid, 1.0, "NewItem")
+
+        stmt = _unpaid(cid)
+        assert len(stmt["rows"]) == 1
+        row = stmt["rows"][0]
+        assert row["details"] == "NewItem"
+        assert row["original"] == pytest.approx(1.0)
+        assert row["paid"] is None
+        assert row["remaining"] == pytest.approx(1.0)
+        assert stmt["total_due"] == pytest.approx(1.0)
+        assert not stmt["has_adjustment"]
+
+    def test_partial_payment(self, sample_customer):
+        cid = sample_customer["id"]
+        _add_debt(cid, 100.0)
+        db.add_payment(cid, 40.0)
+
+        stmt = _unpaid(cid)
+        assert len(stmt["rows"]) == 1
+        row = stmt["rows"][0]
+        assert row["original"] == pytest.approx(100.0)
+        assert row["paid"] == pytest.approx(40.0)
+        assert row["remaining"] == pytest.approx(60.0)
+        assert stmt["total_due"] == pytest.approx(60.0)
+        assert not stmt["has_adjustment"]
+
+    def test_fifo_across_multiple_debts(self, sample_customer):
+        cid = sample_customer["id"]
+        _add_debt(cid, 100.0, "DebtA")
+        _add_debt(cid, 100.0, "DebtB")
+        db.add_payment(cid, 150.0)
+
+        stmt = _unpaid(cid)
+        assert [r["details"] for r in stmt["rows"]] == ["DebtB"]
+        row = stmt["rows"][0]
+        assert row["original"] == pytest.approx(100.0)
+        assert row["paid"] == pytest.approx(50.0)
+        assert row["remaining"] == pytest.approx(50.0)
+        assert stmt["total_due"] == pytest.approx(50.0)
+
+    def test_fully_paid_customer(self, sample_customer):
+        cid = sample_customer["id"]
+        _add_debt(cid, 30.0, "A")
+        _add_debt(cid, 20.0, "B")
+        db.add_payment(cid, 50.0)
+
+        stmt = _unpaid(cid)
+        assert stmt["rows"] == []
+        assert stmt["total_due"] == pytest.approx(0.0)
+        assert not stmt["has_adjustment"]
+
+    def test_voided_debt_never_appears(self, sample_customer):
+        cid = sample_customer["id"]
+        _add_debt(cid, 90.0, "Keep")
+        void_id = _add_debt(cid, 15.0, "VoidMe")
+        db.void_entry(void_id, "mistake")
+
+        assert all(d["id"] != void_id for d in db.get_unpaid_debts(cid))
+        stmt = _unpaid(cid)
+        assert [r["details"] for r in stmt["rows"]] == ["Keep"]
+        assert stmt["total_due"] == pytest.approx(90.0)
+        assert not stmt["has_adjustment"]
+
+    def test_write_off_mismatch_uses_real_balance(self, sample_customer):
+        cid = sample_customer["id"]
+        _add_debt(cid, 500.0, "Big")
+        db.write_off_debt(cid, 50.0, "goodwill")
+
+        stmt = _unpaid(cid)
+        assert stmt["outstanding_total"] == pytest.approx(500.0)
+        assert stmt["adjustment"] == pytest.approx(-50.0)
+        assert stmt["has_adjustment"]
+        assert stmt["total_due"] == pytest.approx(450.0)
+        assert stmt["total_due"] == pytest.approx(db.get_customer_balance(cid))
+        assert stmt["outstanding_total"] + stmt["adjustment"] == pytest.approx(stmt["total_due"])
+
+
+class TestUnpaidStatementRoute:
+    def test_only_new_debt_printed_after_full_payoff(self, client, sample_customer):
+        cid = sample_customer["id"]
+        for i in range(100):
+            _add_debt(cid, 2.0, f"OldItem-{i}")
+        db.add_payment(cid, 200.0)
+        _add_debt(cid, 1.0, "NewItem")
+
+        resp = client.get(f"/customers/{cid}")
+        assert resp.status_code == 200
+        unpaid_html = _unpaid_html(resp.data)
+        assert unpaid_html.count(b'class="unpaid-row"') == 1
+        assert b"NewItem" in unpaid_html
+        assert b"OldItem-" not in unpaid_html
+        assert b"TOTAL DUE" in unpaid_html
+        assert b"$1.00" in unpaid_html
+
+        full_html = resp.data.split(b"print-receipt-full")[1].split(b"page-header")[0]
+        assert b"OldItem-0" in full_html
+        assert b"NewItem" in full_html
+
+    def test_fully_paid_customer_prints_zero(self, client, sample_customer):
+        cid = sample_customer["id"]
+        _add_debt(cid, 50.0, "Gone")
+        db.add_payment(cid, 50.0)
+
+        unpaid_html = _unpaid_html(client.get(f"/customers/{cid}").data)
+        assert b'class="unpaid-row"' not in unpaid_html
+        assert b"No outstanding debts." in unpaid_html
+        assert b"Gone" not in unpaid_html
+        assert b"$0.00" in unpaid_html
+        assert b"Adjustments" not in unpaid_html
+
+    def test_adjustment_line_reconciles(self, client, sample_customer):
+        cid = sample_customer["id"]
+        _add_debt(cid, 500.0, "Big")
+        db.write_off_debt(cid, 50.0, "goodwill")
+
+        unpaid_html = _unpaid_html(client.get(f"/customers/{cid}").data)
+        assert b"Outstanding debts" in unpaid_html
+        assert b"$500.00" in unpaid_html
+        assert b"Adjustments" in unpaid_html
+        assert b"-$50.00" in unpaid_html
+        assert b"TOTAL DUE" in unpaid_html
+        assert b"$450.00" in unpaid_html
 
 
 class TestOutstandingStatementBuilder:
@@ -165,14 +304,13 @@ class TestOutstandingStatementRoute:
         assert b"Payments Received" in resp.data
         assert b"$300.00" in resp.data
         assert b"$250.00" in resp.data
-        assert b"Outstanding Items" not in resp.data or b"print-receipt-unpaid" in resp.data
-        # Unpaid print block should not use the old split section titles
-        unpaid_html = resp.data.split(b"print-receipt-unpaid")[1].split(b"print-receipt-full")[0]
-        assert b"Outstanding Items" not in unpaid_html
-        assert b"Payment History" not in unpaid_html
-        assert b"Account Activity" in unpaid_html
+        unpaid_html = _unpaid_html(resp.data)
         assert b"Outstanding Statement" in unpaid_html
-        assert b"Payments shown above have already been deducted" in unpaid_html
+        assert b"Outstanding Debts" in unpaid_html
+        assert b"Account Activity" not in unpaid_html
+        assert b"Previous purchase" not in unpaid_html
+        assert unpaid_html.count(b'class="unpaid-row"') == 1
+        assert b"$50.00" in unpaid_html
 
         full_html = resp.data.split(b"print-receipt-full")[1].split(b"page-header")[0]
         assert b"Account Statement" in full_html

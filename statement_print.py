@@ -1,6 +1,9 @@
-"""Build print-ready outstanding statement rows from ledger data.
+"""Build print-ready statement rows.
 
-Uses the same entry types and sign rules as database.get_customer_balance:
+build_unpaid_statement: Print Unpaid — only debts with money remaining.
+build_outstanding_statement: Print Full Account — complete ledger history.
+
+The full-history builder uses the same entry types and sign rules as database.get_customer_balance:
 - NEW_DEBT / ADJUSTMENT increase what is owed
 - PAYMENT / WRITE_OFF / REFUND decrease what is owed
 Voided and deleted entries are excluded so the running balance reconciles
@@ -147,4 +150,52 @@ def build_outstanding_statement(ledger: list[dict[str, Any]]) -> dict[str, Any]:
         "total_charges": round(total_charges, 2),
         "total_payments": round(total_payments, 2),
         "balance_due": round(running, 2),
+    }
+
+
+def build_unpaid_statement(
+    unpaid_debts: list[dict[str, Any]], current_balance: float
+) -> dict[str, Any]:
+    """Build the Print Unpaid rows from FIFO-tracked outstanding debts.
+
+    unpaid_debts: rows from database.get_unpaid_debts (OPEN/PARTIAL, remaining > 0).
+    current_balance: database.get_customer_balance — the authoritative total.
+
+    Write-offs, refunds, adjustments and voids change the balance without
+    touching per-debt remaining_amount, so the rows can disagree with the real
+    balance. Any difference is returned as `adjustment` and total_due always
+    equals current_balance.
+    """
+    rows: list[dict[str, Any]] = []
+    outstanding_total = 0.0
+
+    for entry in sorted(unpaid_debts, key=_entry_sort_key):
+        original = round(float(entry.get("amount") or 0), 2)
+        remaining = entry.get("remaining_amount")
+        remaining = original if remaining is None else round(float(remaining), 2)
+        if remaining <= 0:
+            continue
+        paid = round(original - remaining, 2)
+        outstanding_total += remaining
+        rows.append(
+            {
+                "id": entry.get("id"),
+                "date": _format_date(entry.get("created_at")),
+                "details": _debt_details(entry),
+                "original": original,
+                "paid": paid if paid > 0 else None,
+                "remaining": remaining,
+            }
+        )
+
+    outstanding_total = round(outstanding_total, 2)
+    total_due = round(float(current_balance or 0), 2)
+    adjustment = round(total_due - outstanding_total, 2)
+
+    return {
+        "rows": rows,
+        "outstanding_total": outstanding_total,
+        "adjustment": adjustment,
+        "has_adjustment": abs(adjustment) >= 0.01,
+        "total_due": total_due,
     }
