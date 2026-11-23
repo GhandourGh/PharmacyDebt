@@ -1,11 +1,12 @@
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, A5
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, LongTable
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from io import BytesIO
 from datetime import datetime
+from xml.sax.saxutils import escape
 
 # Explicit on all sides: SimpleDocTemplate leaves unstated margins at ~1in by default.
 _PDF_PAGE_MARGINS = dict(
@@ -21,6 +22,176 @@ def format_datetime_12h(dt=None):
     if dt is None:
         dt = datetime.now()
     return dt.strftime('%Y-%m-%d %I:%M %p')
+
+
+def generate_customer_statement_pdf(customer, statement, mode='unpaid'):
+    """Generate a directly downloadable A5 customer statement PDF."""
+    if mode not in {'unpaid', 'full'}:
+        raise ValueError('Statement mode must be unpaid or full.')
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A5,
+        leftMargin=0.8 * cm,
+        rightMargin=0.8 * cm,
+        topMargin=0.8 * cm,
+        bottomMargin=0.8 * cm,
+        title=f"{customer.get('name', 'Customer')} - Pharmacy Thabet",
+        author='Pharmacy Thabet',
+    )
+
+    styles = getSampleStyleSheet()
+    brand_style = ParagraphStyle(
+        'StatementBrand', parent=styles['Heading1'], fontName='Helvetica-Bold',
+        fontSize=12, leading=14, alignment=TA_CENTER, spaceAfter=2,
+    )
+    subtitle_style = ParagraphStyle(
+        'StatementSubtitle', parent=styles['Normal'], fontName='Helvetica-Bold',
+        fontSize=9, leading=11, alignment=TA_CENTER, spaceAfter=2,
+    )
+    meta_style = ParagraphStyle(
+        'StatementMeta', parent=styles['Normal'], fontSize=7, leading=9,
+        textColor=colors.Color(0.33, 0.33, 0.33), alignment=TA_CENTER,
+    )
+    customer_style = ParagraphStyle(
+        'StatementCustomer', parent=styles['Normal'], fontName='Helvetica-Bold',
+        fontSize=10.5, leading=13, spaceAfter=2,
+    )
+    customer_meta_style = ParagraphStyle(
+        'StatementCustomerMeta', parent=styles['Normal'], fontSize=7.5, leading=9,
+        textColor=colors.Color(0.25, 0.25, 0.25),
+    )
+    section_style = ParagraphStyle(
+        'StatementSection', parent=styles['Normal'], fontName='Helvetica-Bold',
+        fontSize=9, leading=11, spaceBefore=5, spaceAfter=3,
+    )
+    cell_style = ParagraphStyle(
+        'StatementCell', parent=styles['Normal'], fontSize=7.25, leading=9,
+        splitLongWords=True,
+    )
+    amount_style = ParagraphStyle(
+        'StatementAmount', parent=cell_style, alignment=TA_RIGHT,
+        wordWrap='LTR',
+    )
+    total_due = statement['total_due'] if mode == 'unpaid' else statement['balance_due']
+    balance_label = 'CURRENT CREDIT BALANCE' if total_due < 0 else ('TOTAL DUE' if mode == 'unpaid' else 'CURRENT BALANCE DUE')
+    subtitle = 'Outstanding Statement' if mode == 'unpaid' else 'Account Statement'
+
+    elements = [
+        Paragraph('Pharmacy Thabet', brand_style),
+        Paragraph(subtitle, subtitle_style),
+        Paragraph(f"Generated on {datetime.now().strftime('%m/%d/%Y, %I:%M:%S %p')}", meta_style),
+        Spacer(1, 0.22 * cm),
+        Table([['']], colWidths=[doc.width], rowHeights=[0.04 * cm], style=TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.black),
+            ('LINEBELOW', (0, 0), (-1, -1), 0, colors.black),
+        ])),
+        Spacer(1, 0.28 * cm),
+        Paragraph(escape(str(customer.get('name') or 'Customer')), customer_style),
+    ]
+    if customer.get('phone'):
+        elements.append(Paragraph(f"Phone: {escape(str(customer['phone']))}", customer_meta_style))
+    elements.append(Spacer(1, 0.2 * cm))
+
+    balance_table = Table(
+        [[Paragraph(balance_label, subtitle_style)],
+         [Paragraph(f"${abs(float(total_due)):.2f}", ParagraphStyle(
+             'StatementBalance', parent=styles['Normal'], fontName='Helvetica-Bold',
+             fontSize=16, leading=18, alignment=TA_CENTER,
+         ))]],
+        colWidths=[doc.width],
+    )
+    balance_table.setStyle(TableStyle([
+        ('BOX', (0, 0), (-1, -1), 0.8, colors.black),
+        ('TOPPADDING', (0, 0), (-1, 0), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 1),
+        ('TOPPADDING', (0, 1), (-1, 1), 0),
+        ('BOTTOMPADDING', (0, 1), (-1, 1), 7),
+    ]))
+    elements.append(balance_table)
+
+    if mode == 'full':
+        summary = Table([
+            ['Total Charges', f"${statement['total_charges']:.2f}"],
+            ['Payments Received', f"${statement['total_payments']:.2f}"],
+            ['Credit Balance' if total_due < 0 else 'Balance Due', f"${abs(total_due):.2f}"],
+        ], colWidths=[5.8 * cm, 3.2 * cm], hAlign='CENTER')
+        summary.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -2), 'Helvetica'),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('LINEABOVE', (0, -1), (-1, -1), 0.6, colors.black),
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ]))
+        elements.extend([Spacer(1, 0.25 * cm), summary])
+
+    elements.append(Paragraph('Outstanding Debts' if mode == 'unpaid' else 'Account Activity', section_style))
+    if mode == 'unpaid':
+        data = [['DATE', 'ITEMS', 'ORIGINAL', 'PAID', 'REMAINING']]
+        for row in statement['rows']:
+            data.append([
+                row['date'], Paragraph(escape(str(row['details'])), cell_style),
+                f"${row['original']:.2f}", f"${row['paid']:.2f}" if row['paid'] is not None else '-',
+                f"${row['remaining']:.2f}",
+            ])
+        if not statement['rows']:
+            data.append(['', Paragraph('No outstanding debts.', cell_style), '', '', ''])
+        if statement.get('has_adjustment'):
+            data.append(['', '', '', 'Outstanding debts', f"${statement['outstanding_total']:.2f}"])
+            sign = '-' if statement['adjustment'] < 0 else '+'
+            data.append(['', '', '', 'Adjustments', f"{sign}${abs(statement['adjustment']):.2f}"])
+        data.append(['TOTAL DUE' if total_due >= 0 else 'CURRENT CREDIT BALANCE', '', '', '', f"${abs(total_due):.2f}"])
+        col_widths = [2.1 * cm, 5.55 * cm, 1.85 * cm, 1.85 * cm, 1.85 * cm]
+    else:
+        data = [['DATE', 'ACTIVITY', 'DETAILS', 'CHARGE', 'PAYMENT', 'BALANCE']]
+        for row in statement['activity']:
+            data.append([
+                row['date'], Paragraph(escape(str(row['activity'])), cell_style),
+                Paragraph(escape(str(row['details'])), cell_style),
+                f"${row['charge']:.2f}" if row['charge'] is not None else '-',
+                f"${row['payment']:.2f}" if row['payment'] is not None else '-',
+                f"${row['balance']:.2f}",
+            ])
+        if not statement['activity']:
+            data.append(['', '', Paragraph('No account activity.', cell_style), '', '', ''])
+        data.append([balance_label, '', '', '', '', f"${abs(total_due):.2f}"])
+        col_widths = [1.95 * cm, 1.7 * cm, 3.95 * cm, 1.85 * cm, 1.85 * cm, 1.9 * cm]
+
+    table = LongTable(
+        data,
+        colWidths=col_widths,
+        repeatRows=1,
+        hAlign='LEFT',
+        splitByRow=True,
+    )
+    last_row = len(data) - 1
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.92, 0.92, 0.92)),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 6.5),
+        ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 7.25),
+        ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LINEABOVE', (0, 0), (-1, 0), 0.8, colors.black),
+        ('LINEBELOW', (0, 0), (-1, 0), 0.8, colors.black),
+        ('LINEBELOW', (0, 1), (-1, -2), 0.3, colors.Color(0.75, 0.75, 0.75)),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+        ('LINEABOVE', (0, last_row), (-1, last_row), 1, colors.black),
+        ('FONTNAME', (0, last_row), (-1, last_row), 'Helvetica-Bold'),
+        ('SPAN', (0, last_row), (-2, last_row)),
+        ('ALIGN', (0, last_row), (0, last_row), 'LEFT'),
+    ]))
+    elements.append(table)
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
 
 
 def generate_debt_report(transactions, total_debt, start_date, end_date, customer_name=None):

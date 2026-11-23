@@ -643,6 +643,235 @@ body {
     gap: 0.5rem;
 }
 
+/* Hallmark · component: statement dropdowns · genre: utilitarian · theme: existing app
+ * states: default · hover · focus · active · disabled · loading · error · success
+ * contrast: pass
+ * pre-emit critique: P5 H5 E5 S5 R5 V4
+ */
+.statement-dropdowns {
+    --statement-accent: #2563eb;
+    --statement-accent-hover: #1d4ed8;
+    --statement-accent-soft: #eff6ff;
+    --statement-download: #0f766e;
+    --statement-download-hover: #115e59;
+    --statement-ink: #172033;
+    --statement-muted: #64748b;
+    --statement-border: #d8deea;
+    --statement-paper: #ffffff;
+    --statement-shadow: rgba(15, 23, 42, 0.16);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.statement-dropdown {
+    position: relative;
+}
+
+.statement-dropdown-trigger {
+    min-width: 9rem;
+    justify-content: center;
+    white-space: nowrap;
+    color: var(--statement-paper);
+    background: var(--statement-accent);
+    border: 1px solid var(--statement-accent);
+    box-shadow: 0 1px 3px var(--statement-shadow);
+}
+
+.statement-dropdown-trigger-download {
+    min-width: 11rem;
+    color: var(--statement-paper);
+    background: var(--statement-download);
+    border-color: var(--statement-download);
+}
+
+.statement-dropdown-trigger:hover,
+.statement-dropdown-trigger[aria-expanded="true"] {
+    color: var(--statement-paper);
+    background: var(--statement-accent-hover);
+    transform: translateY(-1px);
+}
+
+.statement-dropdown-trigger-download:hover,
+.statement-dropdown-trigger-download[aria-expanded="true"] {
+    color: var(--statement-paper);
+    background: var(--statement-download-hover);
+}
+
+.statement-dropdown-trigger:focus-visible,
+.statement-dropdown-item:focus-visible {
+    outline: 3px solid var(--statement-accent);
+    outline-offset: 2px;
+}
+
+.statement-dropdown-trigger:active,
+.statement-dropdown-item:active {
+    transform: translateY(1px);
+}
+
+.statement-dropdown-trigger:disabled,
+.statement-dropdown-item:disabled,
+.statement-dropdown-item[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.52;
+}
+
+.statement-dropdown-trigger[data-state="loading"] {
+    cursor: wait;
+    opacity: 0.72;
+}
+
+.statement-dropdown-trigger[data-state="error"] {
+    border-color: #b91c1c;
+    color: #991b1b;
+}
+
+.statement-dropdown-trigger[data-state="success"] {
+    border-color: #15803d;
+    color: #166534;
+}
+
+.statement-dropdown-chevron {
+    width: 1rem;
+    height: 1rem;
+    margin-left: 0.25rem;
+    transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.statement-dropdown-trigger[aria-expanded="true"] .statement-dropdown-chevron {
+    transform: rotate(180deg);
+}
+
+.statement-dropdown-menu {
+    position: absolute;
+    z-index: 120;
+    top: calc(100% + 0.55rem);
+    left: 0;
+    width: 22rem;
+    padding: 0.7rem;
+    color: var(--statement-ink);
+    background: var(--statement-paper);
+    border: 1px solid var(--statement-border);
+    border-radius: 0.85rem;
+    box-shadow: 0 16px 38px var(--statement-shadow);
+}
+
+.statement-dropdown-menu-right {
+    right: 0;
+    left: auto;
+}
+
+.statement-dropdown-menu[hidden] {
+    display: none;
+}
+
+.statement-dropdown-label {
+    padding: 0.25rem 0.65rem 0.55rem;
+    color: var(--statement-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.statement-dropdown-item {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.85rem 0.7rem;
+    color: var(--statement-ink);
+    background: transparent;
+    border: 0;
+    border-top: 1px solid var(--statement-border);
+    border-radius: 0.5rem;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.statement-dropdown-label + .statement-dropdown-item {
+    border-top: 0;
+}
+
+.statement-dropdown-item:hover {
+    background: var(--statement-accent-soft);
+}
+
+.statement-dropdown-item-primary {
+    margin-bottom: 0.3rem;
+    color: var(--statement-accent);
+    background: var(--statement-accent-soft);
+}
+
+.statement-dropdown-item-primary:hover,
+.statement-dropdown-item-primary:focus-visible {
+    background: #dbeafe;
+}
+
+.statement-dropdown-item-primary > svg {
+    color: var(--statement-accent);
+    stroke-width: 2.35;
+}
+
+.statement-dropdown-item-secondary {
+    color: #475569;
+}
+
+.statement-dropdown-item-secondary > svg {
+    color: var(--statement-muted);
+}
+
+.statement-dropdown-item > svg {
+    flex: 0 0 auto;
+    width: 1.35rem;
+    height: 1.35rem;
+}
+
+.statement-dropdown-copy {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.statement-dropdown-item strong,
+.statement-dropdown-item small {
+    display: block;
+}
+
+.statement-dropdown-item strong {
+    font-size: 0.95rem;
+    line-height: 1.25;
+}
+
+.statement-dropdown-item small {
+    margin-top: 0.15rem;
+    color: var(--statement-muted);
+    font-size: 0.8rem;
+    line-height: 1.25;
+}
+
+@media (max-width: 768px) {
+    .btn-group,
+    .statement-dropdowns {
+        flex-wrap: wrap;
+    }
+
+    .statement-dropdown-menu,
+    .statement-dropdown-menu-right {
+        right: auto;
+        left: 0;
+        width: min(22rem, calc(100vw - 2rem));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .statement-dropdown-chevron,
+    .statement-dropdown-trigger,
+    .statement-dropdown-item {
+        transition-duration: 0.01ms !important;
+    }
+}
+
 /* Forms */
 .form-group {
     margin-bottom: 1.25rem;
@@ -2800,10 +3029,12 @@ tr.voided td {
     margin: 0.2cm 0.55cm 0.65cm 0.55cm;
 }
 
-/* Outstanding statement: A4 with sensible margins */
+/* Customer debt statements: ISO A5 portrait with printer-safe margins.
+   8 mm leaves a safe inset for common office/thermal printers while keeping
+   132 mm of usable width for the statement tables. */
 @page account-statement {
-    size: A4;
-    margin: 12mm 14mm 14mm 14mm;
+    size: A5 portrait;
+    margin: 8mm;
 }
 
 @media print {
@@ -3026,11 +3257,15 @@ tr.voided td {
         border-top: 1px solid #e2e8f0;
     }
 
-    /* ── Account statements (B&W, A4) — unpaid + full ───────────── */
+    /* ── Account statements (B&W, A5 portrait) — unpaid + full ──────── */
     .statement-document .statement-page {
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 132mm;
+        margin: 0 auto;
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-        font-size: 9.5pt;
-        line-height: 1.35;
+        font-size: 8pt;
+        line-height: 1.28;
         color: #111;
         background: #fff;
         -webkit-print-color-adjust: exact;
@@ -3039,11 +3274,11 @@ tr.voided td {
     .statement-document .statement-header {
         text-align: center;
         border-bottom: 1.5pt solid #111;
-        padding-bottom: 0.35cm;
-        margin-bottom: 0.4cm;
+        padding-bottom: 0.25cm;
+        margin-bottom: 0.3cm;
     }
     .statement-document .statement-brand {
-        font-size: 14pt;
+        font-size: 12pt;
         font-weight: 700;
         letter-spacing: 0.02em;
         color: #111;
@@ -3051,35 +3286,35 @@ tr.voided td {
         line-height: 1.15;
     }
     .statement-document .statement-subtitle {
-        font-size: 10pt;
+        font-size: 9pt;
         font-weight: 600;
         color: #333;
         margin: 0.12rem 0 0;
     }
     .statement-document .statement-meta {
-        font-size: 8pt;
+        font-size: 7pt;
         color: #555;
         margin-top: 0.2rem;
     }
     .statement-document .statement-customer {
-        margin-bottom: 0.35cm;
+        margin-bottom: 0.25cm;
     }
     .statement-document .statement-customer-name {
-        font-size: 12pt;
+        font-size: 10.5pt;
         font-weight: 700;
         color: #111;
         margin: 0;
     }
     .statement-document .statement-customer-line {
-        font-size: 8.5pt;
+        font-size: 7.5pt;
         color: #444;
         margin-top: 0.1rem;
     }
     .statement-document .statement-balance-block {
         text-align: center;
         border: 1.25pt solid #111;
-        padding: 0.35cm 0.4cm;
-        margin-bottom: 0.35cm;
+        padding: 0.25cm 0.3cm;
+        margin-bottom: 0.25cm;
         page-break-inside: avoid;
         break-inside: avoid;
     }
@@ -3091,7 +3326,7 @@ tr.voided td {
         margin: 0;
     }
     .statement-document .statement-balance-amount {
-        font-size: 18pt;
+        font-size: 16pt;
         font-weight: 700;
         color: #111;
         margin-top: 0.1rem;
@@ -3099,7 +3334,7 @@ tr.voided td {
         font-variant-numeric: tabular-nums;
     }
     .statement-document .statement-summary {
-        margin-bottom: 0.45cm;
+        margin-bottom: 0.3cm;
         page-break-inside: avoid;
         break-inside: avoid;
     }
@@ -3108,7 +3343,7 @@ tr.voided td {
         max-width: 9cm;
         margin: 0 auto;
         border-collapse: collapse;
-        font-size: 9pt;
+        font-size: 8pt;
     }
     .statement-document .statement-summary-table td {
         padding: 0.12rem 0.2rem;
@@ -3126,7 +3361,7 @@ tr.voided td {
         font-weight: 700;
     }
     .statement-document .statement-section-title {
-        font-size: 10pt;
+        font-size: 9pt;
         font-weight: 700;
         color: #111;
         margin: 0 0 0.25rem;
@@ -3135,7 +3370,7 @@ tr.voided td {
     .statement-document .statement-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 8.5pt;
+        font-size: 7.25pt;
         table-layout: fixed;
         display: table !important;
         page-break-inside: auto !important;
@@ -3153,19 +3388,19 @@ tr.voided td {
     .statement-document .statement-table th {
         text-align: left;
         font-weight: 700;
-        font-size: 7.5pt;
+        font-size: 6.5pt;
         text-transform: uppercase;
         letter-spacing: 0.03em;
         color: #111;
         background: #ececec;
         border-top: 1pt solid #111;
         border-bottom: 1pt solid #111;
-        padding: 0.22rem 0.25rem;
+        padding: 0.18rem 0.14rem;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
     .statement-document .statement-table td {
-        padding: 0.28rem 0.25rem;
+        padding: 0.22rem 0.14rem;
         border-bottom: 0.5pt solid #ccc;
         vertical-align: top;
         color: #111;
@@ -3177,25 +3412,38 @@ tr.voided td {
         break-inside: avoid !important;
     }
     .statement-document .st-col-date {
-        width: 14%;
+        width: 15%;
         white-space: nowrap;
     }
     .statement-document .st-col-activity {
-        width: 12%;
+        width: 13%;
+        overflow-wrap: anywhere;
     }
     .statement-document .st-col-details {
-        width: 32%;
+        width: 30%;
         word-wrap: break-word;
-        overflow-wrap: break-word;
+        overflow-wrap: anywhere;
     }
     .statement-document .st-col-money {
         width: 14%;
         text-align: right !important;
         font-variant-numeric: tabular-nums;
         white-space: nowrap;
+        letter-spacing: -0.02em;
     }
     .statement-document .statement-table th.st-col-money {
         text-align: right !important;
+    }
+    /* The unpaid statement has five columns rather than six. Give its item
+       description the spare width while keeping all three amounts aligned. */
+    .statement-document .statement-table-unpaid .st-col-date {
+        width: 16%;
+    }
+    .statement-document .statement-table-unpaid .st-col-details {
+        width: 42%;
+    }
+    .statement-document .statement-table-unpaid .st-col-money {
+        width: 14%;
     }
     .statement-document .st-balance {
         font-weight: 600;
@@ -4142,4 +4390,57 @@ tr.voided td {
 
 .dark .page-header {
     color: #e2e8f0;
+}
+
+/* Primary positive money KPI (e.g. Today's Payments, Total Paid): "emerald ink".
+   Reads as one rich emerald: the gradient is stretched (240%) so only a soft,
+   low-contrast swell toward #16a34a shows. Wider bands read as "gradient text".
+   Screen only: printers drop backgrounds, which would make clipped text vanish. */
+@media screen {
+    .money-positive-primary {
+        --money-ink-dark: #047857;
+        --money-ink-main: #059669;
+        --money-ink-blend: #0e9c5a;
+        --money-ink-highlight: #16a34a;
+        --money-ink-depth: rgba(4, 120, 87, 0.10);
+        display: inline-block;
+        vertical-align: top;
+        color: var(--money-ink-main);
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        font-variant-numeric: tabular-nums;
+    }
+
+    @supports ((-webkit-background-clip: text) or (background-clip: text)) {
+        .money-positive-primary {
+            background-image: linear-gradient(
+                110deg,
+                var(--money-ink-dark) 0%,
+                var(--money-ink-main) 22%,
+                var(--money-ink-blend) 42%,
+                var(--money-ink-highlight) 50%,
+                var(--money-ink-blend) 58%,
+                var(--money-ink-main) 78%,
+                var(--money-ink-dark) 100%
+            );
+            background-size: 240% 240%;
+            background-position: center;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 1px 1px var(--money-ink-depth));
+        }
+
+        .money-positive-primary::selection {
+            -webkit-text-fill-color: var(--money-ink-dark);
+        }
+    }
+
+    .dark .stat-card .money-positive-primary {
+        --money-ink-dark: #10b981;
+        --money-ink-main: #34d399;
+        --money-ink-blend: #3fd88c;
+        --money-ink-highlight: #4ade80;
+        --money-ink-depth: rgba(2, 6, 23, 0.35);
+    }
 }

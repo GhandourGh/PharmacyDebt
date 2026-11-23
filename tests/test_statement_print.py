@@ -319,3 +319,25 @@ class TestOutstandingStatementRoute:
         assert b"Payment History" not in full_html
         assert b"CURRENT BALANCE DUE" in full_html
         assert b"$50.00" in full_html
+
+
+class TestStatementPdfDownloads:
+    @pytest.mark.parametrize(
+        ("mode", "filename_part"),
+        [("unpaid", "unpaid-statement.pdf"), ("full", "full-account-statement.pdf")],
+    )
+    def test_downloads_a5_pdf(self, client, sample_customer, mode, filename_part):
+        cid = sample_customer["id"]
+        _add_debt(cid, 80.0, "Prescription")
+
+        resp = client.get(f"/customers/{cid}/statement/{mode}.pdf")
+
+        assert resp.status_code == 200
+        assert resp.mimetype == "application/pdf"
+        assert resp.data.startswith(b"%PDF")
+        assert "attachment" in resp.headers["Content-Disposition"]
+        assert filename_part in resp.headers["Content-Disposition"]
+
+    def test_unknown_statement_type_is_404(self, client, sample_customer):
+        resp = client.get(f"/customers/{sample_customer['id']}/statement/other.pdf")
+        assert resp.status_code == 404

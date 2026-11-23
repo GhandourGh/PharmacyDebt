@@ -46,7 +46,7 @@
         <section class="statement-activity">
             <h2 class="statement-section-title">Account Activity</h2>
             {% if stmt.activity %}
-            <table class="statement-table">
+            <table class="statement-table statement-table-full-account">
                 <thead>
                     <tr>
                         <th class="st-col-date">Date</th>
@@ -112,7 +112,7 @@
 
         <section class="statement-activity">
             <h2 class="statement-section-title">Outstanding Debts</h2>
-            <table class="statement-table">
+            <table class="statement-table statement-table-unpaid">
                 <thead>
                     <tr>
                         <th class="st-col-date">Date</th>
@@ -201,14 +201,44 @@
             <i data-lucide="edit"></i>
             Edit
         </a>
-        <button type="button" onclick="printCustomerReceipt('unpaid')" class="btn btn-secondary">
-            <i data-lucide="printer"></i>
-            Print Unpaid
-        </button>
-        <button type="button" onclick="printCustomerReceipt('full')" class="btn btn-secondary">
-            <i data-lucide="printer"></i>
-            Print Full Account
-        </button>
+        <div class="statement-dropdowns">
+            <div class="statement-dropdown">
+                <button type="button" class="btn statement-dropdown-trigger statement-dropdown-trigger-print" aria-expanded="false" aria-haspopup="menu" onclick="toggleStatementMenu(this)">
+                    <i data-lucide="printer"></i>
+                    <span>Print</span>
+                    <i data-lucide="chevron-down" class="statement-dropdown-chevron"></i>
+                </button>
+                <div class="statement-dropdown-menu" role="menu" hidden>
+                    <div class="statement-dropdown-label">Print statement</div>
+                    <button type="button" class="statement-dropdown-item statement-dropdown-item-primary" role="menuitem" onclick="printCustomerReceipt('unpaid')">
+                        <i data-lucide="printer"></i>
+                        <span class="statement-dropdown-copy"><strong>Unpaid balance</strong><small>Outstanding items only</small></span>
+                    </button>
+                    <button type="button" class="statement-dropdown-item statement-dropdown-item-secondary" role="menuitem" onclick="printCustomerReceipt('full')">
+                        <i data-lucide="file-text"></i>
+                        <span class="statement-dropdown-copy"><strong>Full account</strong><small>Complete transaction history</small></span>
+                    </button>
+                </div>
+            </div>
+            <div class="statement-dropdown">
+                <button type="button" class="btn statement-dropdown-trigger statement-dropdown-trigger-download" aria-expanded="false" aria-haspopup="menu" onclick="toggleStatementMenu(this)">
+                    <i data-lucide="download"></i>
+                    <span>Download PDF</span>
+                    <i data-lucide="chevron-down" class="statement-dropdown-chevron"></i>
+                </button>
+                <div class="statement-dropdown-menu statement-dropdown-menu-right" role="menu" hidden>
+                    <div class="statement-dropdown-label">Download statement</div>
+                    <a href="{{ url_for('download_customer_statement', customer_id=customer.id, mode='unpaid') }}" class="statement-dropdown-item statement-dropdown-item-primary" role="menuitem">
+                        <i data-lucide="download"></i>
+                        <span class="statement-dropdown-copy"><strong>Unpaid balance</strong><small>Outstanding items only</small></span>
+                    </a>
+                    <a href="{{ url_for('download_customer_statement', customer_id=customer.id, mode='full') }}" class="statement-dropdown-item statement-dropdown-item-secondary" role="menuitem">
+                        <i data-lucide="file-down"></i>
+                        <span class="statement-dropdown-copy"><strong>Full account</strong><small>Complete transaction history</small></span>
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -227,7 +257,7 @@
             All Paid
             {% endif %}
         </div>
-        <div class="balance-value">${{ "%.2f"|format(display_debt) }}</div>
+        <div class="balance-value{% if total_debt < 0 %} money-positive-primary{% endif %}">${{ "%.2f"|format(display_debt) }}</div>
         {% if total_original > 0 %}
         <div class="balance-subtext">(was ${{ "%.2f"|format(total_original) }})</div>
         {% endif %}
@@ -237,7 +267,7 @@
             <i data-lucide="banknote" style="width: 18px; height: 18px; vertical-align: middle;"></i>
             Total Paid
         </div>
-        <div class="balance-value">${{ "%.2f"|format(total_paid) }}</div>
+        <div class="balance-value money-positive-primary">${{ "%.2f"|format(total_paid) }}</div>
     </div>
 </div>
 
@@ -1410,6 +1440,7 @@
 
     // Print receipt helpers (statement vs payment — separate buttons, no auto-print)
     window.printCustomerReceipt = function(mode) {
+        closeStatementMenus();
         document.body.classList.remove('printing-unpaid', 'printing-full');
         document.body.classList.add(mode === 'full' ? 'printing-full' : 'printing-unpaid');
         document.querySelectorAll('.receipt-print-date').forEach(function(el) {
@@ -1419,6 +1450,40 @@
     };
     window.addEventListener('afterprint', function() {
         document.body.classList.remove('printing-unpaid', 'printing-full');
+    });
+
+    function closeStatementMenus(exceptMenu) {
+        document.querySelectorAll('.statement-dropdown-menu').forEach(function(menu) {
+            if (menu !== exceptMenu) {
+                menu.hidden = true;
+                const trigger = menu.previousElementSibling;
+                if (trigger) trigger.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+
+    window.toggleStatementMenu = function(button) {
+        const menu = button.nextElementSibling;
+        const willOpen = menu.hidden;
+        closeStatementMenus(menu);
+        menu.hidden = !willOpen;
+        button.setAttribute('aria-expanded', String(willOpen));
+        if (willOpen) {
+            const firstItem = menu.querySelector('[role="menuitem"]');
+            if (firstItem) firstItem.focus();
+        }
+    };
+
+    document.addEventListener('click', function(event) {
+        if (!event.target.closest('.statement-dropdown')) closeStatementMenus();
+    });
+
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            const openTrigger = document.querySelector('.statement-dropdown-trigger[aria-expanded="true"]');
+            closeStatementMenus();
+            if (openTrigger) openTrigger.focus();
+        }
     });
 </script>
 {% endblock %}

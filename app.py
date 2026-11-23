@@ -6,7 +6,7 @@ from flask import Flask, render_template, request, redirect, url_for, jsonify, s
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
 import database as db
-from pdf_export import generate_debt_report, generate_all_customers_debt_report, generate_debt_report_by_date_range
+from pdf_export import generate_debt_report, generate_all_customers_debt_report, generate_debt_report_by_date_range, generate_customer_statement_pdf
 from statement_print import build_outstanding_statement, build_unpaid_statement
 from validators import (
     ValidationError, validate_amount, validate_quantity,
@@ -356,6 +356,37 @@ def customer_detail(customer_id):
                          total_original=total_original,
                          products=products,
                          unpaid_debts=unpaid_debts)
+
+
+@app.route('/customers/<int:customer_id>/statement/<mode>.pdf')
+def download_customer_statement(customer_id, mode):
+    """Download an A5 unpaid or full-account customer statement."""
+    if mode not in {'unpaid', 'full'}:
+        return 'Statement type not found.', 404
+
+    customer = db.get_customer(customer_id)
+    if not customer:
+        return 'Customer not found.', 404
+
+    if mode == 'unpaid':
+        statement = build_unpaid_statement(
+            db.get_unpaid_debts(customer_id),
+            db.get_customer_balance(customer_id),
+        )
+    else:
+        statement = build_outstanding_statement(
+            db.get_customer_ledger(customer_id, include_voided=True)
+        )
+
+    pdf_buffer = generate_customer_statement_pdf(customer, statement, mode)
+    safe_name = secure_filename(customer.get('name') or f'customer-{customer_id}') or f'customer-{customer_id}'
+    statement_name = 'unpaid-statement' if mode == 'unpaid' else 'full-account-statement'
+    return send_file(
+        pdf_buffer,
+        as_attachment=True,
+        download_name=f'{safe_name}-{statement_name}.pdf',
+        mimetype='application/pdf',
+    )
 
 @app.route('/customers/<int:customer_id>/edit', methods=['GET', 'POST'])
 def edit_customer(customer_id):
